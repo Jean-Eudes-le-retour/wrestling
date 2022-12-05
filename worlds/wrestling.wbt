@@ -114,7 +114,8 @@ RubberDuck {
 DEF WRESTLER_RED Nao {
   translation -0.88 0 0.834
   name "wrestler red"
-  controller "Bob"
+  controller "Test"
+  window "pan_tilt_camera_view"
   selfCollision TRUE
 }
 DEF WRESTLER_BLUE Nao {

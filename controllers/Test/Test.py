@@ -21,8 +21,33 @@ Depending on the fall direction, the robot will play a different motion, which i
 
 from controller import Robot, Motion
 from enum import Enum
+import base64
+import sys
+import os
+import tempfile
+
+try:
+    import numpy as np
+except ImportError:
+    sys.exit("Warning: 'numpy' module not found. Please check the Python modules installation instructions " +
+             "at 'https://www.cyberbotics.com/doc/guide/using-python'.")
+try:
+    import cv2
+except ImportError:
+    sys.exit("Warning: 'cv2' module not found. Please check the Python modules installation instructions " +
+             "at 'https://www.cyberbotics.com/doc/guide/using-python'.")
+
 
 State = Enum('State', ['IDLE', 'WALK', 'FRONT_FALL', 'BACK_FALL'])
+
+
+# Set path to store temporary device images
+deviceImagePath = os.getcwd()
+try:
+    imageFile = open(deviceImagePath + "/image.jpg", 'w')
+    imageFile.close()
+except IOError:
+    deviceImagePath = tempfile.gettempdir()
 
 
 class Wrestler (Robot):
@@ -34,6 +59,10 @@ class Wrestler (Robot):
         self.state = State.IDLE
         self.startTime = None
         self.currentMotion = None
+
+        # camera
+        self.camera = self.getDevice("CameraTop")
+        self.camera.enable(4 * self.timeStep)
 
         # accelerometer
         self.accelerometer = self.getDevice("accelerometer")
@@ -47,9 +76,37 @@ class Wrestler (Robot):
         self.leds.append(self.getDevice('Face/Led/Right'))
         self.leds.append(self.getDevice('Face/Led/Left'))
 
-        # Shoulder roll motors
-        self.RShoulderRoll = self.getDevice('RShoulderRoll')
-        self.LShoulderRoll = self.getDevice('LShoulderRoll')
+        # arm motors
+        self.RShoulderPitch = self.getDevice("RShoulderPitch")
+        self.LShoulderPitch = self.getDevice("LShoulderPitch")
+
+        self.RShoulderRoll = self.getDevice("RShoulderRoll")
+        self.LShoulderRoll = self.getDevice("LShoulderRoll")
+
+        self.RElbowRoll = self.getDevice("RElbowRoll")
+        self.LElbowRoll = self.getDevice("LElbowRoll")
+
+        self.RElbowYaw = self.getDevice("RElbowYaw")
+        self.LElbowYaw = self.getDevice("LElbowYaw")
+
+        # leg motors
+        self.RHipPitch = self.getDevice("RHipPitch")
+        self.LHipPitch = self.getDevice("LHipPitch")
+
+        self.RHipRoll = self.getDevice("RHipRoll")
+        self.LHipRoll = self.getDevice("LHipRoll")
+
+        self.RHipYawPitch = self.getDevice("RHipYawPitch")
+        self.LHipYawPitch = self.getDevice("LHipYawPitch")
+
+        self.RKneePitch = self.getDevice("RKneePitch")
+        self.LKneePitch = self.getDevice("LKneePitch")
+
+        self.RAnklePitch = self.getDevice("RAnklePitch")
+        self.LAnklePitch = self.getDevice("LAnklePitch")
+
+        self.RAnkleRoll = self.getDevice("RAnkleRoll")
+        self.LAnkleRoll = self.getDevice("LAnkleRoll")
 
         # load motion files
         self.forwards = Motion('../motions/ForwardLoop.motion')
@@ -67,10 +124,24 @@ class Wrestler (Robot):
 
         while self.step(self.timeStep) != -1:
             t = self.getTime()
+
+            img = self._get_cv_image_from_camera()
+
+            # Segment the image by color in HSV color space
+            # img = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+            # mask = cv2.inRange(img, np.array([50, 150, 0]), np.array([200, 230, 255]))
+
+            # Find the largest segmented contour (red ball) and it's center
+            # contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+
+            # Send image to robot window
+            self._send_image_to_robot_window(img)
+
             # Moving average on self.HISTORY_STEPS steps
             self.accelerometerHistory.pop(0)
             self.accelerometerHistory.append(self.accelerometer.getValues())
-            self.accelerometerAverage = [sum(x)/self.HISTORY_STEPS for x in zip(*self.accelerometerHistory)]
+            self.accelerometerAverage = [
+                sum(x)/self.HISTORY_STEPS for x in zip(*self.accelerometerHistory)]
 
             if self.accelerometerAverage[0] < -7:
                 self.state = State.FRONT_FALL
@@ -81,6 +152,15 @@ class Wrestler (Robot):
             if self.accelerometerAverage[1] > 7:
                 self.LShoulderRoll.setPosition(1.2)
             self.stateAction(t)
+
+    def _send_image_to_robot_window(self, img):
+        _, im_arr = cv2.imencode('.jpg', img)  # im_arr: image in Numpy one-dim array format.
+        im_bytes = im_arr.tobytes()
+        im_b64 = base64.b64encode(im_bytes).decode()
+        self.wwiSendText("image[camera]:data:image/jpeg;base64," + im_b64)
+
+    def _get_cv_image_from_camera(self):
+        return np.frombuffer(self.camera.getImage(), np.uint8).reshape((self.camera.getHeight(), self.camera.getWidth(), 4))
 
     def stateAction(self, t):
         if self.state == State.IDLE:
