@@ -126,16 +126,41 @@ class Wrestler (Robot):
             t = self.getTime()
 
             img = self._get_cv_image_from_camera()
+            laplacian = cv2.Laplacian(img, cv2.CV_8U, ksize=3)
+            blur = cv2.GaussianBlur(laplacian, (0, 0), 2)
+            gray = cv2.cvtColor(blur, cv2.COLOR_BGR2GRAY)
+            _, thresh = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY)
+            closing = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15)))
+            contours, hierarchy = cv2.findContours(
+                closing, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            contours = sorted(contours, key=cv2.contourArea, reverse=True)
 
-            # Segment the image by color in HSV color space
-            # img = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
-            # mask = cv2.inRange(img, np.array([50, 150, 0]), np.array([200, 230, 255]))
+            # prepares robot window image
+            output = img.copy()
 
-            # Find the largest segmented contour (red ball) and it's center
-            # contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+            # get centroid of the largest contour, default to the image's center
+            # and draw the contour + centroid on the output image
+            if len(contours) > 0:
+                largest_contour = contours[0]
+                M = cv2.moments(largest_contour)
+                try:
+                    cx = int(M['m10']/M['m00'])
+                    cy = int(M['m01']/M['m00'])
+                except ZeroDivisionError:
+                    cx = img.shape[1]//2
+                    cy = img.shape[0]//2
+
+                cv2.drawContours(
+                    output, [largest_contour], 0, (255, 255, 0), 1)
+            else:
+                # get center of image
+                cx = img.shape[1]//2
+                cy = img.shape[0]//2
+            output = cv2.circle(output, (cx, cy), radius=2,
+                                color=(0, 0, 255), thickness=-1)
 
             # Send image to robot window
-            self._send_image_to_robot_window(img)
+            self._send_image_to_robot_window(output)
 
             # Moving average on self.HISTORY_STEPS steps
             self.accelerometerHistory.pop(0)
@@ -154,7 +179,8 @@ class Wrestler (Robot):
             self.stateAction(t)
 
     def _send_image_to_robot_window(self, img):
-        _, im_arr = cv2.imencode('.jpg', img)  # im_arr: image in Numpy one-dim array format.
+        # im_arr: image in Numpy one-dim array format.
+        _, im_arr = cv2.imencode('.jpg', img)
         im_bytes = im_arr.tobytes()
         im_b64 = base64.b64encode(im_bytes).decode()
         self.wwiSendText("image[camera]:data:image/jpeg;base64," + im_b64)
