@@ -26,9 +26,6 @@ import sys
 import os
 import tempfile
 
-import ikpy
-from ikpy.chain import Chain
-
 try:
     import numpy as np
 except ImportError:
@@ -42,15 +39,6 @@ except ImportError:
 
 
 State = Enum('State', ['IDLE', 'WALK', 'FRONT_FALL', 'BACK_FALL'])
-IKPY_MAX_ITERATIONS = 4
-
-# Set path to store temporary device images
-deviceImagePath = os.getcwd()
-try:
-    imageFile = open(deviceImagePath + "/image.jpg", 'w')
-    imageFile.close()
-except IOError:
-    deviceImagePath = tempfile.gettempdir()
 
 
 class Wrestler (Robot):
@@ -64,8 +52,8 @@ class Wrestler (Robot):
         self.currentMotion = None
 
         # camera
-        # self.camera = self.getDevice("CameraTop")
-        # self.camera.enable(4 * self.timeStep)
+        self.camera = self.getDevice("CameraTop")
+        self.camera.enable(4 * self.timeStep)
 
         # accelerometer
         self.accelerometer = self.getDevice("accelerometer")
@@ -78,31 +66,6 @@ class Wrestler (Robot):
         self.leds = []
         self.leds.append(self.getDevice('Face/Led/Right'))
         self.leds.append(self.getDevice('Face/Led/Left'))
-
-        self.left_leg_chain = Chain.from_urdf_file(
-            '../../protos/nao.urdf',
-            base_elements=['base_link', 'LHipYawPitch'],
-            active_links_mask=[False, True, True,
-                               True, True, True, True, False]
-        )
-
-        self.right_leg_chain = Chain.from_urdf_file(
-            '../../protos/nao.urdf',
-            base_elements=['base_link', 'RHipYawPitch'],
-            active_links_mask=[False, True, True,
-                               True, True, True, True, False]
-        )
-
-        # L_leg_motors = []
-        # for link in left_leg_chain.links:
-        #     if link.name != 'base_link' and link.name != "LLeg_effector_fixedjoint":
-        #         motor = self.getDevice(link.name)
-        #         #motor.setVelocity(1.0)
-        #         position_sensor = motor.getPositionSensor()
-        #         position_sensor.enable(self.timeStep)
-        #         L_leg_motors.append(motor)
-
-        self.start_joint = [0, 0, 0, -0.523, 1.047, -0.524, 0, 0]
 
         # arm motors
         self.RShoulderPitch = self.getDevice("RShoulderPitch")
@@ -118,14 +81,14 @@ class Wrestler (Robot):
         self.LElbowYaw = self.getDevice("LElbowYaw")
 
         # leg motors
-        self.RHipYawPitch = self.getDevice("RHipYawPitch")
-        self.LHipYawPitch = self.getDevice("LHipYawPitch")
+        self.RHipPitch = self.getDevice("RHipPitch")
+        self.LHipPitch = self.getDevice("LHipPitch")
 
         self.RHipRoll = self.getDevice("RHipRoll")
         self.LHipRoll = self.getDevice("LHipRoll")
 
-        self.RHipPitch = self.getDevice("RHipPitch")
-        self.LHipPitch = self.getDevice("LHipPitch")
+        self.RHipYawPitch = self.getDevice("RHipYawPitch")
+        self.LHipYawPitch = self.getDevice("LHipYawPitch")
 
         self.RKneePitch = self.getDevice("RKneePitch")
         self.LKneePitch = self.getDevice("LKneePitch")
@@ -153,39 +116,14 @@ class Wrestler (Robot):
         while self.step(self.timeStep) != -1:
             t = self.getTime()
 
-            # self._image_processing()
+            self._image_processing()
 
-            # compute desired feet position from feet trajectory
-            x, z = self._compute_desired_position(t)
-            right_target_joints = self.left_leg_chain.inverse_kinematics(
-                [x[0], 0.05, z[0]],
-                [0, 0, 0],
-                initial_position=self.start_joint,
-                max_iter=IKPY_MAX_ITERATIONS,
-                orientation_mode='all'
-            )
-            self.RHipYawPitch.setPosition(right_target_joints[1])
-            self.RHipRoll.setPosition(right_target_joints[2])
-            self.RHipPitch.setPosition(right_target_joints[3])
-            self.RKneePitch.setPosition(right_target_joints[4])
-            self.RAnklePitch.setPosition(right_target_joints[5])
-            self.RAnkleRoll.setPosition(right_target_joints[6])
+            # Moving average on self.HISTORY_STEPS steps
+            self.accelerometerHistory.pop(0)
+            self.accelerometerHistory.append(self.accelerometer.getValues())
+            self.accelerometerAverage = [
+                sum(x)/self.HISTORY_STEPS for x in zip(*self.accelerometerHistory)]
 
-            left_target_joints = self.left_leg_chain.inverse_kinematics(
-                [x[1], 0.05, z[1]],
-                [0, 0, 0],
-                initial_position=self.start_joint,
-                max_iter=IKPY_MAX_ITERATIONS,
-                orientation_mode='all'
-            )
-            self.LHipYawPitch.setPosition(left_target_joints[1])
-            self.LHipRoll.setPosition(left_target_joints[2])
-            self.LHipPitch.setPosition(left_target_joints[3])
-            self.LKneePitch.setPosition(left_target_joints[4])
-            self.LAnklePitch.setPosition(left_target_joints[5])
-            self.LAnkleRoll.setPosition(left_target_joints[6])
-
-            """self._update_accelerometerAverage()
             if self.accelerometerAverage[0] < -7:
                 self.state = State.FRONT_FALL
             if self.accelerometerAverage[0] > 7:
@@ -194,34 +132,62 @@ class Wrestler (Robot):
                 self.RShoulderRoll.setPosition(-1.2)
             if self.accelerometerAverage[1] > 7:
                 self.LShoulderRoll.setPosition(1.2)
-            self.stateAction(t)"""
+            self.stateAction(t)
 
-    def _compute_desired_position(self, t):
-        step_period = 0.7
-        # More intuitive to make the angle spin clockwise
-        theta = -(2 * np.pi * t / step_period) % (2 * np.pi)
-        h = -0.3
-        step_size = 0.04
-        ground_clearance = 0.025
-        ground_penetration = 0.005
-        x = np.zeros(2)
-        x[0] = step_size * np.cos(theta)
-        x[1] = -x[0]
-        z = np.zeros(2)
-        if theta < np.pi:
-            z[0] = h + ground_clearance * np.sin(theta)
-            z[1] = h - ground_penetration * np.sin(theta)
+    def _image_processing(self):
+        img = self._get_cv_image_from_camera()
+
+        # The robot is supposed to be located at a concentration of high color changes (big Laplacian values)
+        laplacian = cv2.Laplacian(img, cv2.CV_8U, ksize=3)
+        # those spikes are then smoothed out using a Gaussian blur to get blurry blobs
+        blur = cv2.GaussianBlur(laplacian, (0, 0), 2)
+        # We apply a threshold to get a binary image of potential robot locations
+        gray = cv2.cvtColor(blur, cv2.COLOR_BGR2GRAY)
+        _, thresh = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY)
+        # the binary image is then dilated to merge small groups of blobs together
+        closing = cv2.morphologyEx(
+            thresh, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15)))
+        # the largest contour is then picked and its centroid is used as the robot's location
+        contours, hierarchy = cv2.findContours(
+            closing, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        contours = sorted(contours, key=cv2.contourArea, reverse=True)
+
+        # prepares robot window image
+        output = img.copy()
+
+        # get centroid of the largest contour, default to the image's center
+        # and draw the contour + centroid on the output image
+        if len(contours) > 0:
+            largest_contour = contours[0]
+            M = cv2.moments(largest_contour)
+            try:
+                cx = int(M['m10']/M['m00'])
+                cy = int(M['m01']/M['m00'])
+            except ZeroDivisionError:
+                cx = img.shape[1]//2
+                cy = img.shape[0]//2
+
+            cv2.drawContours(
+                output, [largest_contour], 0, (255, 255, 0), 1)
         else:
-            z[0] = h + ground_penetration * np.sin(theta)
-            z[1] = h - ground_clearance * np.sin(theta)
-        return x, z
+            # get center of image
+            cx = img.shape[1]//2
+            cy = img.shape[0]//2
+        output = cv2.circle(output, (cx, cy), radius=2,
+                            color=(0, 0, 255), thickness=-1)
 
-    def _update_accelerometerAverage(self):
-        # Moving average on self.HISTORY_STEPS steps
-        self.accelerometerHistory.pop(0)
-        self.accelerometerHistory.append(self.accelerometer.getValues())
-        self.accelerometerAverage = [
-            sum(x)/self.HISTORY_STEPS for x in zip(*self.accelerometerHistory)]
+        self._send_image_to_robot_window(output)
+        pass
+
+    def _send_image_to_robot_window(self, img):
+        # im_arr: image in Numpy one-dim array format.
+        _, im_arr = cv2.imencode('.jpg', img)
+        im_bytes = im_arr.tobytes()
+        im_b64 = base64.b64encode(im_bytes).decode()
+        self.wwiSendText("image[camera]:data:image/jpeg;base64," + im_b64)
+
+    def _get_cv_image_from_camera(self):
+        return np.frombuffer(self.camera.getImage(), np.uint8).reshape((self.camera.getHeight(), self.camera.getWidth(), 4))
 
     def stateAction(self, t):
         if self.state == State.IDLE:
