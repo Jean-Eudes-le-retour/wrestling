@@ -25,7 +25,6 @@ import base64
 import sys
 import os
 from scipy.spatial.transform import Rotation as R
-import matplotlib.pyplot as plt
 
 import ikpy
 from ikpy.chain import Chain
@@ -50,24 +49,6 @@ class Wrestler (Robot):
     def __init__(self):
         Robot.__init__(self)
 
-        # CPG structures: amplitude is row 0, and phase is row 1
-        self._reset_X()
-        self.X_dot = np.zeros((2, 2))
-        self._mu = 1
-        self._alpha = 0.8
-        self._coupling_strength = 1
-        self._robot_height = -0.3
-        self._step_size = 0.08
-        self._ground_clearance = 0.04
-        self._ground_penetration = 0.005
-        self._omega_swing = 2 * np.pi / 0.5
-        self._omega_stance = 2 * np.pi / 0.5
-        self._couple = True
-        self.PHI = np.pi * np.flipud(np.diag((1, -1)))
-        self.CPG_dot_state = np.expand_dims(self.X_dot.copy(), 2)
-        self.CPG_state = np.expand_dims(self.X.copy(), 2)
-        self.k_steps = 1
-
         # retrieves the WorldInfo.basicTimeTime (ms) from the world file
         # IK solver is quite heavy, so we will run only every 2 time steps
         self.timeStep = int(2 * self.getBasicTimeStep())
@@ -86,20 +67,11 @@ class Wrestler (Robot):
         self.HISTORY_STEPS = 10
         self.accelerometerHistory = [[0]*3]*self.HISTORY_STEPS
 
-        # Force sensors
-        self.right_foot_force_sensor = self.getDevice("RFsr")
-        self.right_foot_force_sensor.enable(self.timeStep)
-        self.right_previous_contact = True
-        self.left_foot_force_sensor = self.getDevice("LFsr")
-        self.left_foot_force_sensor.enable(self.timeStep)
-        self.left_previous_contact = True
-
         # there are 7 controllable LEDs on the NAO robot, but we will use only the ones in the eyes
         self.leds = []
         self.leds.append(self.getDevice('Face/Led/Right'))
         self.leds.append(self.getDevice('Face/Led/Left'))
 
-        # getting the motors and kinematic chains from the Nao URDF file
         self.left_leg_chain = Chain.from_urdf_file(
             '../../protos/nao.urdf',
             base_elements=['base_link', 'LHipYawPitch'],
@@ -118,21 +90,20 @@ class Wrestler (Robot):
         for link in self.left_leg_chain.links:
             if link.name != 'Base link' and link.name != "LLeg_effector_fixedjoint":
                 motor = self.getDevice(link.name)
-                # motor.setVelocity(1.0)
+                #motor.setVelocity(1.0)
                 position_sensor = motor.getPositionSensor()
                 position_sensor.enable(self.timeStep)
                 self.L_leg_motors.append(motor)
-
+        
         self.R_leg_motors = []
         for link in self.right_leg_chain.links:
             if link.name != 'Base link' and link.name != "RLeg_effector_fixedjoint":
                 motor = self.getDevice(link.name)
-                # motor.setVelocity(1.0)
+                #motor.setVelocity(1.0)
                 position_sensor = motor.getPositionSensor()
                 position_sensor.enable(self.timeStep)
                 self.R_leg_motors.append(motor)
-        
-        # Inverse kinematics seed
+
         self.left_previous_joints = [0, 0, 0, -0.523, 1.047, -0.524, 0, 0]
         self.right_previous_joints = [0, 0, 0, -0.523, 1.047, -0.524, 0, 0]
 
@@ -155,13 +126,6 @@ class Wrestler (Robot):
         self.stand = Motion('../motions/Stand.motion')
         self.getUpFront = Motion('../motions/GetUpFront.motion')
         self.getUpBack = Motion('../motions/GetUpBack.motion')
-    
-    def _reset_X(self):
-        # right is 0 and left is 1
-        self.X = np.array(
-            [[0.1, 0.1],
-             [np.pi / 2, 3 * np.pi / 2]]
-        )
 
     def run(self):
         self.leds[0].set(0x0000ff)
@@ -170,11 +134,10 @@ class Wrestler (Robot):
         self.stand.play()
         self.currentMotion = self.stand
 
-        fig, axs = plt.subplots(4, 1, sharex=True)
-        fig.align_ylabels()
-
         while self.step(self.timeStep) != -1:
             t = self.getTime()
+
+            # self._image_processing()
 
             self._update_accelerometerAverage()
             if self.accelerometerAverage[0] < -7:
@@ -186,75 +149,26 @@ class Wrestler (Robot):
             if self.accelerometerAverage[1] > 7:
                 self.LShoulderRoll.setPosition(1.2)
             self.stateAction(t)
-            if 0: self._plot(axs)
 
     def _compute_desired_position(self, t):
-        # update parameters, integrate
-        self._integrate_hopf_equations()
-
-        X = self.X.copy()
-
+        step_period = 0.5
+        # More intuitive to make the angle spin clockwise
+        theta = -(2 * np.pi * t / step_period) % (2 * np.pi)
+        h = -0.29
+        step_size = 0.04
+        ground_clearance = 0.04
+        ground_penetration = 0.005
         x = np.zeros(2)
-        x = -self._step_size * np.cos(X[1, :]) * X[0, :]
+        x[0] = step_size * np.cos(theta)
+        x[1] = -x[0]
         z = np.zeros(2)
-        z[X[1, :] < np.pi] = self._robot_height + \
-            self._ground_clearance * np.sin(X[1, X[1, :] < np.pi])
-        z[X[1, :] >= np.pi] = self._robot_height + \
-            self._ground_penetration * np.sin(X[1, X[1, :] >= np.pi])
-
-        return x, z
-
-    def _integrate_hopf_equations(self):
-        # bookkeeping - save copies of current CPG states
-        X = self.X.copy()
-        X_dot = np.zeros((2, 2))
-        alpha = self._alpha
-
-        Lfsv = self.left_foot_force_sensor.getValues()
-        left_force = np.linalg.norm(np.array([Lfsv[0], Lfsv[1], Lfsv[2]]))
-        is_left_foot_in_contact = left_force > 5
-        Rfsv = self.right_foot_force_sensor.getValues()
-        right_force = np.linalg.norm(np.array([Rfsv[0], Rfsv[1], Rfsv[2]]))
-        is_right_foot_in_contact = right_force > 5
-        if is_left_foot_in_contact and self.left_previous_contact == False:
-            X[1, 1] = 3 * np.pi / 2
-        elif is_right_foot_in_contact and self.right_previous_contact == False:
-            X[1, 0] = 3 * np.pi / 2
-        self.left_previous_contact = is_left_foot_in_contact
-        self.right_previous_contact = is_right_foot_in_contact
-
-        # loop through each leg's oscillator
-        for i in range(2):
-            # get r_i, theta_i from X
-            r, theta = X[0, i], X[1, i]
-            # compute r_dot (Equation 6)
-            r_dot = alpha * (self._mu - r * r) * r
-            # determine whether oscillator i is in swing or stance phase to set natural frequency omega_swing or omega_stance (see Section 3)
-            if (theta < np.pi):
-                theta_dot = self._omega_swing
-            else:
-                theta_dot = self._omega_stance
-
-            # loop through other oscillators to add coupling (Equation 7)
-            if self._couple:
-                theta_dot += X[0, 1-i] * self._coupling_strength * \
-                    np.sin(X[1, 1-i] - X[1, i] - self.PHI[i, 1-i])
-
-            # set X_dot[:,i]
-            X_dot[:, i] = [r_dot, theta_dot]
-
-        # integrate
-        X += X_dot * self.timeStep/1000
-        self.X = X
-        self.X_dot = X_dot
-
-        # mod phase variables to keep between 0 and 2pi
-        self.X[1, :] = self.X[1, :] % (2*np.pi)
-        # print(f'left theta: {self.X[1, 1]}')
-
-        self.CPG_dot_state = np.append(self.CPG_dot_state, np.expand_dims(X_dot, 2), axis=2)
-        self.CPG_state = np.append(self.CPG_state, np.expand_dims(X, 2), axis=2)
-        self.k_steps += 1
+        if theta < np.pi:
+            z[0] = h + ground_clearance * np.sin(theta)
+            z[1] = h - ground_penetration * np.sin(theta)
+        else:
+            z[0] = h + ground_penetration * np.sin(theta)
+            z[1] = h - ground_clearance * np.sin(theta)
+        return x, z, theta
 
     def _update_accelerometerAverage(self):
         # Moving average on self.HISTORY_STEPS steps
@@ -268,9 +182,7 @@ class Wrestler (Robot):
             self.idle()
         elif self.state == State.WALK:
             self.walk(t)
-        else:
-            self._reset_X()
-        if self.state == State.FRONT_FALL:
+        elif self.state == State.FRONT_FALL:
             self.frontFall(t)
         elif self.state == State.BACK_FALL:
             self.backFall(t)
@@ -281,11 +193,13 @@ class Wrestler (Robot):
 
     def walk(self, t):
         # compute desired feet position from feet trajectory
-        x, z = self._compute_desired_position(t)
-
+        x, z, theta = self._compute_desired_position(t)
+        x_pos = self._image_processing()
+        # amount of rotation depends on the x position of the opponent
+        virage = 0.12 * (x_pos/80 - 1)
         right_target_commands = self.right_leg_chain.inverse_kinematics(
             [x[0], -0.045, z[0]],
-            np.eye(3),
+            self._z_rotation_matrix(theta, virage),
             initial_position=self.right_previous_joints,
             max_iter=IKPY_MAX_ITERATIONS,
             orientation_mode='all'
@@ -296,7 +210,7 @@ class Wrestler (Robot):
 
         left_target_commands = self.left_leg_chain.inverse_kinematics(
             [x[1], 0.045, z[1]],
-            np.eye(3),
+            self._z_rotation_matrix(theta + np.pi, virage),
             initial_position=self.left_previous_joints,
             max_iter=IKPY_MAX_ITERATIONS,
             orientation_mode='all'
@@ -304,6 +218,64 @@ class Wrestler (Robot):
         for command, motor in zip(left_target_commands[1:], self.L_leg_motors):
             motor.setPosition(command)
         self.left_previous_joints = left_target_commands
+    
+    def _z_rotation_matrix(self, theta, rotation_amount):
+        return R.from_rotvec((np.sin(theta/2) * rotation_amount + rotation_amount) * np.array([0, 0, 1])).as_matrix()
+
+    def _image_processing(self):
+        img = self._get_cv_image_from_camera()
+
+        # The robot is supposed to be located at a concentration of high color changes (big Laplacian values)
+        laplacian = cv2.Laplacian(img, cv2.CV_8U, ksize=3)
+        # those spikes are then smoothed out using a Gaussian blur to get blurry blobs
+        blur = cv2.GaussianBlur(laplacian, (0, 0), 2)
+        # We apply a threshold to get a binary image of potential robot locations
+        gray = cv2.cvtColor(blur, cv2.COLOR_BGR2GRAY)
+        _, thresh = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY)
+        # the binary image is then dilated to merge small groups of blobs together
+        closing = cv2.morphologyEx(
+            thresh, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15)))
+        # the largest contour is then picked and its centroid is used as the robot's location
+        contours, hierarchy = cv2.findContours(
+            closing, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        contours = sorted(contours, key=cv2.contourArea, reverse=True)
+
+        # prepares robot window image
+        output = img.copy()
+
+        # get centroid of the largest contour, default to the image's center
+        # and draw the contour + centroid on the output image
+        if len(contours) > 0:
+            largest_contour = contours[0]
+            M = cv2.moments(largest_contour)
+            try:
+                cx = int(M['m10']/M['m00'])
+                cy = int(M['m01']/M['m00'])
+            except ZeroDivisionError:
+                cx = img.shape[1]//2
+                cy = img.shape[0]//2
+
+            cv2.drawContours(
+                output, [largest_contour], 0, (255, 255, 0), 1)
+        else:
+            # get center of image
+            cx = img.shape[1]//2
+            cy = img.shape[0]//2
+        output = cv2.circle(output, (cx, cy), radius=2,
+                            color=(0, 0, 255), thickness=-1)
+
+        self._send_image_to_robot_window(output)
+        return cx
+
+    def _send_image_to_robot_window(self, img):
+        # im_arr: image in Numpy one-dim array format.
+        _, im_arr = cv2.imencode('.jpg', img)
+        im_bytes = im_arr.tobytes()
+        im_b64 = base64.b64encode(im_bytes).decode()
+        self.wwiSendText("image[camera]:data:image/jpeg;base64," + im_b64)
+
+    def _get_cv_image_from_camera(self):
+        return np.frombuffer(self.camera.getImage(), np.uint8).reshape((self.camera.getHeight(), self.camera.getWidth(), 4))
 
     def frontFall(self, time):
         if self.startTime is None:
@@ -332,31 +304,6 @@ class Wrestler (Robot):
     def _reset_isOver_flag(self, motion):
         motion.play()
         motion.stop()
-    
-    def _plot(self, axs):
-        epaisseur = 0.5
-        t = np.linspace(0, self.k_steps*self.timeStep/1000, self.k_steps)
-        axs[0].plot(t, self.CPG_state[1,1,:], color='tab:blue', linewidth=epaisseur, label='FL phase')
-        axs[1].plot(t, self.CPG_dot_state[1,1,:], color='tab:orange', linewidth=epaisseur, label='FL phase dot')
-        axs[2].plot(t, self.CPG_state[0,1,:], color='tab:green', linewidth=epaisseur, label='FL amplitude')
-        axs[3].plot(t, self.CPG_dot_state[0,1,:], color='tab:red', linewidth=epaisseur, label='FL amplitude dot')
-        axs[0].set_ylabel("phase\nLeft [rad]")
-        axs[1].set_ylabel("phase\ndot Left [rad/s]")
-        axs[2].set_ylabel("amplitude\nLeft [1]")
-        axs[3].set_ylabel("amplitude\ndot Left [1/s]")
-        axs[3].set_xlabel("time [s]")
-        plt.savefig("output.jpg")
-        im = plt.imread("output.jpg")
-        self._send_image_to_robot_window(im)
-
-    def _send_image_to_robot_window(self, img):
-        # fig.canvas.draw()
-        # im_bytes = fig.canvas.tostring_rgb()
-        # im_arr: image in Numpy one-dim array format.
-        _, im_arr = cv2.imencode('.jpg', img)
-        im_bytes = im_arr.tobytes()
-        im_b64 = base64.b64encode(im_bytes).decode()
-        self.wwiSendText("image[camera]:data:image/jpeg;base64," + im_b64)
 
 
 # create the Robot instance and run main loop
