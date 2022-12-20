@@ -25,7 +25,7 @@ from enum import Enum
 State = Enum('State', ['IDLE', 'WALK', 'FRONT_FALL', 'BACK_FALL'])
 
 
-class Wrestler (Robot):
+class David (Robot):
     def __init__(self):
         Robot.__init__(self)
 
@@ -67,20 +67,25 @@ class Wrestler (Robot):
 
         while self.step(self.timeStep) != -1:
             t = self.getTime()
-            # Moving average on self.HISTORY_STEPS steps
-            self.accelerometerHistory.pop(0)
-            self.accelerometerHistory.append(self.accelerometer.getValues())
-            self.accelerometerAverage = [sum(x)/self.HISTORY_STEPS for x in zip(*self.accelerometerHistory)]
-
-            if self.accelerometerAverage[0] < -7:
-                self.state = State.FRONT_FALL
-            if self.accelerometerAverage[0] > 7:
-                self.state = State.BACK_FALL
-            if self.accelerometerAverage[1] < -7:
-                self.RShoulderRoll.setPosition(-1.2)
-            if self.accelerometerAverage[1] > 7:
-                self.LShoulderRoll.setPosition(1.2)
+            self.detectFall()
             self.stateAction(t)
+    
+    def detectFall(self):
+        # Moving average on self.HISTORY_STEPS steps
+        self.accelerometerHistory.pop(0)
+        self.accelerometerHistory.append(self.accelerometer.getValues())
+        self.accelerometerAverage = [sum(x)/self.HISTORY_STEPS for x in zip(*self.accelerometerHistory)]
+
+        if self.accelerometerAverage[0] < -7:
+            self.state = State.FRONT_FALL
+        if self.accelerometerAverage[0] > 7:
+            self.state = State.BACK_FALL
+        if self.accelerometerAverage[1] < -7:
+            # Push itself on its back
+            self.RShoulderRoll.setPosition(-1.2)
+        if self.accelerometerAverage[1] > 7:
+            # Push itself on its back
+            self.LShoulderRoll.setPosition(1.2)
 
     def stateAction(self, t):
         if self.state == State.IDLE:
@@ -130,5 +135,5 @@ class Wrestler (Robot):
 
 
 # create the Robot instance and run main loop
-wrestler = Wrestler()
+wrestler = David()
 wrestler.run()

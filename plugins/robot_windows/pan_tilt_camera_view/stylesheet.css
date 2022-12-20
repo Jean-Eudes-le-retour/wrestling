@@ -121,6 +121,6 @@ img {
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
   width: auto;
-  height: 960px;
+  height: 960px; /*100% height:120px;*/
   /*height:60vh;*/
 }

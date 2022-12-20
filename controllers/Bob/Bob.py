@@ -18,7 +18,7 @@
 from controller import Robot, Motion
 
 
-class Wrestler (Robot):
+class Bob (Robot):
     def run(self):
         forward = Motion('../motions/Forwards50.motion')
         forward.play()
@@ -28,5 +28,5 @@ class Wrestler (Robot):
 
 
 # create the Robot instance and run main loop
-wrestler = Wrestler()
+wrestler = Bob()
 wrestler.run()

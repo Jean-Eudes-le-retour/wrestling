@@ -19,7 +19,7 @@
 from controller import Robot, Motion
 
 
-class Wrestler (Robot):
+class Charlie (Robot):
     def __init__(self):
         Robot.__init__(self)
         self.timeStep = int(self.getBasicTimeStep())  # retrieves the WorldInfo.basicTimeTime (ms) from the world file
@@ -55,5 +55,5 @@ class Wrestler (Robot):
 
 
 # create the Robot instance and run main loop
-wrestler = Wrestler()
+wrestler = Charlie()
 wrestler.run()

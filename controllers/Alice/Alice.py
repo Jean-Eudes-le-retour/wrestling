@@ -18,7 +18,7 @@
 from controller import Robot, Motion
 
 
-class Wrestler (Robot):
+class Alice (Robot):
     def run(self):
         handWave = Motion('../motions/TurnLeft40.motion')  # look into this text file, it's easy to understand
         handWave.setLoop(True)
@@ -29,5 +29,5 @@ class Wrestler (Robot):
 
 
 # create the Robot instance and run main loop
-wrestler = Wrestler()
+wrestler = Alice()
 wrestler.run()

@@ -58,7 +58,7 @@ class Wrestler (Robot):
 
         # camera
         self.camera = self.getDevice("CameraTop")
-        self.camera.enable(4 * self.timeStep)
+        self.camera.enable(self.timeStep)
 
         # accelerometer
         self.accelerometer = self.getDevice("accelerometer")
@@ -139,19 +139,28 @@ class Wrestler (Robot):
 
             # self._image_processing()
 
-            self._update_accelerometerAverage()
-            if self.accelerometerAverage[0] < -7:
-                self.state = State.FRONT_FALL
-            if self.accelerometerAverage[0] > 7:
-                self.state = State.BACK_FALL
-            if self.accelerometerAverage[1] < -7:
-                self.RShoulderRoll.setPosition(-1.2)
-            if self.accelerometerAverage[1] > 7:
-                self.LShoulderRoll.setPosition(1.2)
+            self.detectFall()
             self.stateAction(t)
+    
+    def detectFall(self):
+        # Moving average on self.HISTORY_STEPS steps
+        self.accelerometerHistory.pop(0)
+        self.accelerometerHistory.append(self.accelerometer.getValues())
+        self.accelerometerAverage = [sum(x)/self.HISTORY_STEPS for x in zip(*self.accelerometerHistory)]
+
+        if self.accelerometerAverage[0] < -7:
+            self.state = State.FRONT_FALL
+        if self.accelerometerAverage[0] > 7:
+            self.state = State.BACK_FALL
+        if self.accelerometerAverage[1] < -7:
+            # Push itself on its back
+            self.RShoulderRoll.setPosition(-1.2)
+        if self.accelerometerAverage[1] > 7:
+            # Push itself on its back
+            self.LShoulderRoll.setPosition(1.2)
 
     def _compute_desired_position(self, t):
-        step_period = 0.5
+        step_period = 0.7
         # More intuitive to make the angle spin clockwise
         theta = -(2 * np.pi * t / step_period) % (2 * np.pi)
         h = -0.29
@@ -268,11 +277,10 @@ class Wrestler (Robot):
         return cx
 
     def _send_image_to_robot_window(self, img):
-        # im_arr: image in Numpy one-dim array format.
-        _, im_arr = cv2.imencode('.jpg', img)
+        _, im_arr = cv2.imencode('.png', img[:,:,:3])
         im_bytes = im_arr.tobytes()
         im_b64 = base64.b64encode(im_bytes).decode()
-        self.wwiSendText("image[camera]:data:image/jpeg;base64," + im_b64)
+        self.wwiSendText("image[camera]:data:image/png;base64," + im_b64)
 
     def _get_cv_image_from_camera(self):
         return np.frombuffer(self.camera.getImage(), np.uint8).reshape((self.camera.getHeight(), self.camera.getWidth(), 4))
