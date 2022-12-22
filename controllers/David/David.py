@@ -20,7 +20,7 @@ Depending on the fall direction, the robot will play a different motion, which i
 """
 
 import sys
-from controller import Robot, Motion
+from controller import Robot
 sys.path.append('../utils')
 from accelerometer import Accelerometer
 from fsm import FiniteStateMachine
@@ -41,9 +41,10 @@ class David (Robot):
         self.accelerometer = Accelerometer(self.getDevice('accelerometer'), self.timeStep)
 
         # there are 7 controllable LEDs on the NAO robot, but we will use only the ones in the eyes
-        self.leds = []
-        self.leds.append(self.getDevice('Face/Led/Right'))
-        self.leds.append(self.getDevice('Face/Led/Left'))
+        self.leds = {
+            'right': self.getDevice('Face/Led/Right'),
+            'left':  self.getDevice('Face/Led/Left')
+        }
 
         # Shoulder roll motors
         self.RShoulderRoll = self.getDevice('RShoulderRoll')
@@ -51,13 +52,12 @@ class David (Robot):
 
         # load motion files
         self.current_motion = Current_motion_manager()
-
         self.library = Motion_library()
 
     def run(self):
-        self.leds[0].set(0x0000ff)
-        self.leds[1].set(0x0000ff)
-        self.current_motion.set(self.library.motions['Stand'])
+        self.leds['right'].set(0x0000ff)
+        self.leds['left'].set(0x0000ff)
+        self.current_motion.set(self.library.get('Stand'))
         self.fsm.transition_to('BLOCKING_MOTION')
 
         while self.step(self.timeStep) != -1:
@@ -75,10 +75,10 @@ class David (Robot):
         if accelerometer_average[0] > 7:
             self.fsm.transition_to('BACK_FALL')
         if accelerometer_average[1] < -7:
-            # Fell on its right, pushing itself on its back
+            # Fell to its right, pushing itself on its back
             self.RShoulderRoll.setPosition(-1.2)
         if accelerometer_average[1] > 7:
-            # Fell on its left, pushing itself on its back
+            # Fell to its left, pushing itself on its back
             self.LShoulderRoll.setPosition(1.2)
 
     def stateAction(self, t):
@@ -95,19 +95,19 @@ class David (Robot):
     def pending(self):
         # waits for the current motion to finish before doing anything else
         if self.current_motion.isOver():
-            self.current_motion.set(self.library.motions['Stand'])
+            self.current_motion.set(self.library.get('Stand'))
             self.fsm.transition_to('DEFAULT')
 
     def walk(self):
-        if self.current_motion.get() != self.library.motions['ForwardLoop']:
-            self.current_motion.set(self.library.motions['ForwardLoop'])
+        if self.current_motion.get() != self.library.get('ForwardLoop'):
+            self.current_motion.set(self.library.get('ForwardLoop'))
 
     def frontFall(self): 
+        self.current_motion.set(self.library.get('GetUpFront'))
         self.fsm.transition_to('BLOCKING_MOTION')
-        self.current_motion.set(self.library.motions['GetUpFront'])
 
     def backFall(self):
-        self.current_motion.set(self.library.motions['GetUpBack'])
+        self.current_motion.set(self.library.get('GetUpBack'))
         self.fsm.transition_to('BLOCKING_MOTION')
 
 

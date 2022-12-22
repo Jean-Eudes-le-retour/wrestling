@@ -15,13 +15,29 @@
 """Minimalist controller example for the Robot Wrestling Tournament.
    Beats Alice by moving forwards and therefore having a higher coverage."""
 
-from controller import Robot, Motion
-
+import sys
+from controller import Robot
+sys.path.append('../utils') # adding the utils folder to get access to some helper functions
+from motion import Motion_library
 
 class Bob (Robot):
+    def __init__(self):
+        super().__init__()
+        # to load all the motions from the motion folder, we use the Motion_library class:
+        self.library = Motion_library()
+        
+        # initializing shoulder pitch motors
+        self.RShoulderPitch = self.getDevice("RShoulderPitch")
+        self.LShoulderPitch = self.getDevice("LShoulderPitch")
     def run(self):
-        forward = Motion('../motions/Forwards50.motion')
-        forward.play()
+        # to play a motion from the library, we use the play() function as follows:
+        self.library.play('Forwards50')
+        
+        # to control a motor, we use the setPosition() function:
+        self.RShoulderPitch.setPosition(1.57)  # arms in front, zombie mode
+        self.LShoulderPitch.setPosition(1.57)
+        # for more motor control functions, see the documentation: https://cyberbotics.com/doc/reference/motor
+
         timeStep = int(self.getBasicTimeStep())  # retrieves the WorldInfo.basicTimeTime (ms) from the world file
         while self.step(timeStep) != -1:
             pass

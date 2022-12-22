@@ -20,6 +20,7 @@ from controller import Robot, Motion
 
 class Alice (Robot):
     def run(self):
+        # motion files are text files containing pre-recorded positions of the robot's joints
         handWave = Motion('../motions/TurnLeft40.motion')  # look into this text file, it's easy to understand
         handWave.setLoop(True)
         handWave.play()

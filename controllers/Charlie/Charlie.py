@@ -16,8 +16,10 @@
    Demonstrates how to access sensors and actuators
    Beats Bob by moving forwards and pushing him to the ground."""
 
-from controller import Robot, Motion
-
+import sys
+from controller import Robot
+sys.path.append('../utils')
+from motion import Motion_library
 
 class Charlie (Robot):
     def __init__(self):
@@ -25,30 +27,20 @@ class Charlie (Robot):
         self.timeStep = int(self.getBasicTimeStep())  # retrieves the WorldInfo.basicTimeTime (ms) from the world file
 
         # there are 7 controllable LEDs on the NAO robot, but we will use only the ones in the eyes
-        self.leds = []
-        self.leds.append(self.getDevice('Face/Led/Right'))
-        self.leds.append(self.getDevice('Face/Led/Left'))
+        self.leds = {
+            'right': self.getDevice('Face/Led/Right'),
+            'left':  self.getDevice('Face/Led/Left')
+        }
 
-        # shoulder pitch motors
-        self.RShoulderPitch = self.getDevice("RShoulderPitch")
-        self.LShoulderPitch = self.getDevice("LShoulderPitch")
-
-        # load motion files
-        self.loop = Motion('../motions/ForwardLoop.motion')
-        self.shove = Motion('./Shove.motion')
+        self.library = Motion_library()
+        self.library.add('Shove', './Shove.motion', loop=True) # adding a custom motion to the library
 
     def run(self):
-        self.RShoulderPitch.setPosition(0)  # arms in front, zombie mode
-        self.LShoulderPitch.setPosition(0)
+        self.library.play('ForwardLoop')  # walk forward
+        self.library.play('Shove')        # play the shove motion
 
-        self.loop.setLoop(True)
-        self.loop.play()
-
-        self.shove.setLoop(True)
-        self.shove.play()
-
-        self.leds[0].set(0xff0000)  # set eyes to red, kill mode activated
-        self.leds[1].set(0xff0000)
+        self.leds['right'].set(0xff0000)  # set eyes to red, kill mode activated
+        self.leds['left'].set(0xff0000)
 
         while self.step(self.timeStep) != -1:
             pass
