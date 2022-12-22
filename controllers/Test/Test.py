@@ -60,8 +60,7 @@ class Wrestler (Robot):
         self._step_size = 0.08
         self._ground_clearance = 0.04
         self._ground_penetration = 0.005
-        self._omega_swing = 2 * np.pi / 0.5
-        self._omega_stance = 2 * np.pi / 0.5
+        self._omega = 2 * np.pi / 0.6
         self._couple = True
         self.PHI = np.pi * np.flipud(np.diag((1, -1)))
         self.CPG_dot_state = np.expand_dims(self.X_dot.copy(), 2)
@@ -175,16 +174,7 @@ class Wrestler (Robot):
 
         while self.step(self.timeStep) != -1:
             t = self.getTime()
-
-            self._update_accelerometerAverage()
-            if self.accelerometerAverage[0] < -7:
-                self.state = State.FRONT_FALL
-            if self.accelerometerAverage[0] > 7:
-                self.state = State.BACK_FALL
-            if self.accelerometerAverage[1] < -7:
-                self.RShoulderRoll.setPosition(-1.2)
-            if self.accelerometerAverage[1] > 7:
-                self.LShoulderRoll.setPosition(1.2)
+            self._detect_fall()
             self.stateAction(t)
             if 0: self._plot(axs)
 
@@ -210,6 +200,7 @@ class Wrestler (Robot):
         X_dot = np.zeros((2, 2))
         alpha = self._alpha
 
+        # reset theta if the leg is in contact with the ground
         Lfsv = self.left_foot_force_sensor.getValues()
         left_force = np.linalg.norm(np.array([Lfsv[0], Lfsv[1], Lfsv[2]]))
         is_left_foot_in_contact = left_force > 5
@@ -229,16 +220,11 @@ class Wrestler (Robot):
             r, theta = X[0, i], X[1, i]
             # compute r_dot (Equation 6)
             r_dot = alpha * (self._mu - r * r) * r
-            # determine whether oscillator i is in swing or stance phase to set natural frequency omega_swing or omega_stance (see Section 3)
-            if (theta < np.pi):
-                theta_dot = self._omega_swing
-            else:
-                theta_dot = self._omega_stance
+            theta_dot = self._omega
 
             # loop through other oscillators to add coupling (Equation 7)
             if self._couple:
-                theta_dot += X[0, 1-i] * self._coupling_strength * \
-                    np.sin(X[1, 1-i] - X[1, i] - self.PHI[i, 1-i])
+                theta_dot += X[0, 1-i] * self._coupling_strength * np.sin(X[1, 1-i] - X[1, i] - self.PHI[i, 1-i])
 
             # set X_dot[:,i]
             X_dot[:, i] = [r_dot, theta_dot]
@@ -255,7 +241,18 @@ class Wrestler (Robot):
         self.CPG_dot_state = np.append(self.CPG_dot_state, np.expand_dims(X_dot, 2), axis=2)
         self.CPG_state = np.append(self.CPG_state, np.expand_dims(X, 2), axis=2)
         self.k_steps += 1
-
+    
+    def _detect_fall(self):
+        self._update_accelerometerAverage()
+        if self.accelerometerAverage[0] < -7:
+            self.state = State.FRONT_FALL
+        if self.accelerometerAverage[0] > 7:
+            self.state = State.BACK_FALL
+        if self.accelerometerAverage[1] < -7:
+            self.RShoulderRoll.setPosition(-1.2)
+        if self.accelerometerAverage[1] > 7:
+            self.LShoulderRoll.setPosition(1.2)
+    
     def _update_accelerometerAverage(self):
         # Moving average on self.HISTORY_STEPS steps
         self.accelerometerHistory.pop(0)

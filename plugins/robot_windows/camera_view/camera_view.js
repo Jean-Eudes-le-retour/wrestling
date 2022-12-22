@@ -3,12 +3,10 @@ import RobotWindow from 'https://cyberbotics.com/wwi/R2023a/RobotWindow.js';
 window.robotWindow = new RobotWindow();
 
 window.robotWindow.receive = function(message, robot) {
-  // image format: image[<device name>]:<URI image data>
-  if (message.startsWith('image')) {
-    const label = message.substring(message.indexOf('[') + 1, message.indexOf(']'));
-    const imageElement = document.getElementById('robot-' + label);
+  if (message.startsWith('data:image')) {
+    const imageElement = document.getElementById('robot-camera');
     if (imageElement != null)
-      imageElement.setAttribute('src', message.substring(message.indexOf(':') + 1));
+      imageElement.setAttribute('src', message);
   } else {
     if (message.length > 200)
       message = message.substr(0, 200);

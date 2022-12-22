@@ -19,11 +19,12 @@ Demonstrates how to use a sensor, here an accelerometer to detect a fall.
 Depending on the fall direction, the robot will play a different motion, which is implemented by a simple Finite State Machine.
 """
 
+import sys
 from controller import Robot, Motion
-from enum import Enum
-
-State = Enum('State', ['IDLE', 'WALK', 'FRONT_FALL', 'BACK_FALL'])
-
+sys.path.append('../utils')
+from accelerometer import Accelerometer
+from fsm import FiniteStateMachine
+from motion import Current_motion_manager, Motion_library
 
 class David (Robot):
     def __init__(self):
@@ -31,16 +32,13 @@ class David (Robot):
 
         # retrieves the WorldInfo.basicTimeTime (ms) from the world file
         self.timeStep = int(self.getBasicTimeStep())
-        self.state = State.IDLE
-        self.startTime = None
-        self.currentMotion = None
+        self.fsm = FiniteStateMachine(
+            states=['DEFAULT', 'BLOCKING_MOTION', 'FRONT_FALL', 'BACK_FALL'],
+            initial_state='DEFAULT'
+        )
 
         # accelerometer
-        self.accelerometer = self.getDevice("accelerometer")
-        self.accelerometer.enable(self.timeStep)
-        self.accelerometerAverage = [0]*3
-        self.HISTORY_STEPS = 10
-        self.accelerometerHistory = [[0]*3]*self.HISTORY_STEPS
+        self.accelerometer = Accelerometer(self.getDevice('accelerometer'), self.timeStep)
 
         # there are 7 controllable LEDs on the NAO robot, but we will use only the ones in the eyes
         self.leds = []
@@ -52,18 +50,15 @@ class David (Robot):
         self.LShoulderRoll = self.getDevice('LShoulderRoll')
 
         # load motion files
-        self.forwards = Motion('../motions/ForwardLoop.motion')
-        self.forwards.setLoop(True)
-        self.stand = Motion('../motions/Stand.motion')
-        self.getUpFront = Motion('../motions/GetUpFront.motion')
-        self.getUpBack = Motion('../motions/GetUpBack.motion')
+        self.current_motion = Current_motion_manager()
+
+        self.library = Motion_library()
 
     def run(self):
         self.leds[0].set(0x0000ff)
         self.leds[1].set(0x0000ff)
-
-        self.stand.play()
-        self.currentMotion = self.stand
+        self.current_motion.set(self.library.motions['Stand'])
+        self.fsm.transition_to('BLOCKING_MOTION')
 
         while self.step(self.timeStep) != -1:
             t = self.getTime()
@@ -71,67 +66,49 @@ class David (Robot):
             self.stateAction(t)
     
     def detectFall(self):
-        # Moving average on self.HISTORY_STEPS steps
-        self.accelerometerHistory.pop(0)
-        self.accelerometerHistory.append(self.accelerometer.getValues())
-        self.accelerometerAverage = [sum(x)/self.HISTORY_STEPS for x in zip(*self.accelerometerHistory)]
+        ''' Rudimentary fall detector. Manages transitions to the correct state'''
+        self.accelerometer.update()
+        accelerometer_average = self.accelerometer.getAverage()
 
-        if self.accelerometerAverage[0] < -7:
-            self.state = State.FRONT_FALL
-        if self.accelerometerAverage[0] > 7:
-            self.state = State.BACK_FALL
-        if self.accelerometerAverage[1] < -7:
-            # Push itself on its back
+        if accelerometer_average[0] < -7:
+            self.fsm.transition_to('FRONT_FALL')
+        if accelerometer_average[0] > 7:
+            self.fsm.transition_to('BACK_FALL')
+        if accelerometer_average[1] < -7:
+            # Fell on its right, pushing itself on its back
             self.RShoulderRoll.setPosition(-1.2)
-        if self.accelerometerAverage[1] > 7:
-            # Push itself on its back
+        if accelerometer_average[1] > 7:
+            # Fell on its left, pushing itself on its back
             self.LShoulderRoll.setPosition(1.2)
 
     def stateAction(self, t):
-        if self.state == State.IDLE:
-            self.idle()
-        elif self.state == State.WALK:
+        state = self.fsm.current_state
+        if state == 'BLOCKING_MOTION':
+            self.pending()
+        elif state == 'DEFAULT':
             self.walk()
-        elif self.state == State.FRONT_FALL:
-            self.frontFall(t)
-        elif self.state == State.BACK_FALL:
-            self.backFall(t)
+        elif state == 'FRONT_FALL':
+            self.frontFall()
+        elif state == 'BACK_FALL':
+            self.backFall()
 
-    def idle(self):
-        if self.currentMotion.isOver():
-            self.state = State.WALK
+    def pending(self):
+        # waits for the current motion to finish before doing anything else
+        if self.current_motion.isOver():
+            self.current_motion.set(self.library.motions['Stand'])
+            self.fsm.transition_to('DEFAULT')
 
     def walk(self):
-        if self.currentMotion != self.forwards:
-            self._set_current_motion(self.forwards)
+        if self.current_motion.get() != self.library.motions['ForwardLoop']:
+            self.current_motion.set(self.library.motions['ForwardLoop'])
 
-    def frontFall(self, time):
-        if self.startTime is None:
-            self.startTime = time
-            self._set_current_motion(self.getUpFront)
-        elif self.getUpFront.isOver():
-            self.startTime = None
-            self.state = State.IDLE
-            self._set_current_motion(self.stand)
+    def frontFall(self): 
+        self.fsm.transition_to('BLOCKING_MOTION')
+        self.current_motion.set(self.library.motions['GetUpFront'])
 
-    def backFall(self, time):
-        if self.startTime is None:
-            self.startTime = time
-            self._set_current_motion(self.getUpBack)
-        elif self.getUpBack.isOver():
-            self.startTime = None
-            self.state = State.IDLE
-            self._set_current_motion(self.stand)
-
-    def _set_current_motion(self, motion):
-        self.currentMotion.stop()
-        self._reset_isOver_flag(self.currentMotion)
-        self.currentMotion = motion
-        motion.play()
-
-    def _reset_isOver_flag(self, motion):
-        motion.play()
-        motion.stop()
+    def backFall(self):
+        self.current_motion.set(self.library.motions['GetUpBack'])
+        self.fsm.transition_to('BLOCKING_MOTION')
 
 
 # create the Robot instance and run main loop

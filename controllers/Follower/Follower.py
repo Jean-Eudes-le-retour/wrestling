@@ -26,6 +26,9 @@ import sys
 import os
 from scipy.spatial.transform import Rotation as R
 
+sys.path.append('../utils')
+import image
+
 import ikpy
 from ikpy.chain import Chain
 
@@ -136,9 +139,6 @@ class Wrestler (Robot):
 
         while self.step(self.timeStep) != -1:
             t = self.getTime()
-
-            # self._image_processing()
-
             self.detectFall()
             self.stateAction(t)
     
@@ -159,8 +159,8 @@ class Wrestler (Robot):
             # Push itself on its back
             self.LShoulderRoll.setPosition(1.2)
 
-    def _compute_desired_position(self, t):
-        step_period = 0.7
+    def _compute_desired_position(self, t, x_pos_norm):
+        step_period = 0.5
         # More intuitive to make the angle spin clockwise
         theta = -(2 * np.pi * t / step_period) % (2 * np.pi)
         h = -0.29
@@ -168,8 +168,9 @@ class Wrestler (Robot):
         ground_clearance = 0.04
         ground_penetration = 0.005
         x = np.zeros(2)
-        x[0] = step_size * np.cos(theta)
-        x[1] = -x[0]
+        step_length_modifier = 0.04
+        x[0] =  (step_size - x_pos_norm * step_length_modifier * (x_pos_norm > 0)) * np.cos(theta)
+        x[1] = -(step_size + x_pos_norm * step_length_modifier * (x_pos_norm < 0)) * np.cos(theta)
         z = np.zeros(2)
         if theta < np.pi:
             z[0] = h + ground_clearance * np.sin(theta)
@@ -202,13 +203,16 @@ class Wrestler (Robot):
 
     def walk(self, t):
         # compute desired feet position from feet trajectory
-        x, z, theta = self._compute_desired_position(t)
         x_pos = self._image_processing()
         # amount of rotation depends on the x position of the opponent
-        virage = 0.12 * (x_pos/80 - 1)
+        x_pos_normalized = (x_pos/80 - 1)
+        # need to twist ankle + change step length for each leg
+        #   c.f. Learning CPG-based Biped Locomotion with a Policy Gradient Method: Application to a Humanoid Robot
+        z_angle_twist = 0.34 * x_pos_normalized
+        x, z, theta = self._compute_desired_position(t, x_pos_normalized)
         right_target_commands = self.right_leg_chain.inverse_kinematics(
             [x[0], -0.045, z[0]],
-            self._z_rotation_matrix(theta, virage),
+            self._z_rotation_matrix(theta, z_angle_twist),
             initial_position=self.right_previous_joints,
             max_iter=IKPY_MAX_ITERATIONS,
             orientation_mode='all'
@@ -219,7 +223,7 @@ class Wrestler (Robot):
 
         left_target_commands = self.left_leg_chain.inverse_kinematics(
             [x[1], 0.045, z[1]],
-            self._z_rotation_matrix(theta + np.pi, virage),
+            self._z_rotation_matrix(theta + np.pi, z_angle_twist),
             initial_position=self.left_previous_joints,
             max_iter=IKPY_MAX_ITERATIONS,
             orientation_mode='all'
@@ -232,58 +236,17 @@ class Wrestler (Robot):
         return R.from_rotvec((np.sin(theta/2) * rotation_amount + rotation_amount) * np.array([0, 0, 1])).as_matrix()
 
     def _image_processing(self):
-        img = self._get_cv_image_from_camera()
+        img = image.get_cv_image_from_camera(self.camera)
 
-        # The robot is supposed to be located at a concentration of high color changes (big Laplacian values)
-        laplacian = cv2.Laplacian(img, cv2.CV_8U, ksize=3)
-        # those spikes are then smoothed out using a Gaussian blur to get blurry blobs
-        blur = cv2.GaussianBlur(laplacian, (0, 0), 2)
-        # We apply a threshold to get a binary image of potential robot locations
-        gray = cv2.cvtColor(blur, cv2.COLOR_BGR2GRAY)
-        _, thresh = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY)
-        # the binary image is then dilated to merge small groups of blobs together
-        closing = cv2.morphologyEx(
-            thresh, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15)))
-        # the largest contour is then picked and its centroid is used as the robot's location
-        contours, hierarchy = cv2.findContours(
-            closing, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        contours = sorted(contours, key=cv2.contourArea, reverse=True)
-
-        # prepares robot window image
+        largest_contour, cx, cy = image.locate_opponent(img)
         output = img.copy()
-
-        # get centroid of the largest contour, default to the image's center
-        # and draw the contour + centroid on the output image
-        if len(contours) > 0:
-            largest_contour = contours[0]
-            M = cv2.moments(largest_contour)
-            try:
-                cx = int(M['m10']/M['m00'])
-                cy = int(M['m01']/M['m00'])
-            except ZeroDivisionError:
-                cx = img.shape[1]//2
-                cy = img.shape[0]//2
-
-            cv2.drawContours(
-                output, [largest_contour], 0, (255, 255, 0), 1)
-        else:
-            # get center of image
-            cx = img.shape[1]//2
-            cy = img.shape[0]//2
+        if largest_contour is not None:
+            cv2.drawContours(output, [largest_contour], 0, (255, 255, 0), 1)
         output = cv2.circle(output, (cx, cy), radius=2,
                             color=(0, 0, 255), thickness=-1)
 
-        self._send_image_to_robot_window(output)
+        image.send_image_to_robot_window(self, output)
         return cx
-
-    def _send_image_to_robot_window(self, img):
-        _, im_arr = cv2.imencode('.png', img[:,:,:3])
-        im_bytes = im_arr.tobytes()
-        im_b64 = base64.b64encode(im_bytes).decode()
-        self.wwiSendText("image[camera]:data:image/png;base64," + im_b64)
-
-    def _get_cv_image_from_camera(self):
-        return np.frombuffer(self.camera.getImage(), np.uint8).reshape((self.camera.getHeight(), self.camera.getWidth(), 4))
 
     def frontFall(self, time):
         if self.startTime is None:
