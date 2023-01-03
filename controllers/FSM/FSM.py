@@ -12,19 +12,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Controller example for the Robot Wrestling Tournament.
-   Demonstrates how to access sensors and actuators
-   Beats Bob by moving forwards and pushing him to the ground."""
+"""
+Basic controller that uses the Fall_detection class to detect a fall and run a recovery motion.
+"""
 
 import sys
 from controller import Robot
 sys.path.append('..')
-from utils.motion import Motion_library
+from utils.behavior import Fall_detection
+from utils.motion import Motion_library, Current_motion_manager
 
-class Charlie (Robot):
+class David (Robot):
     def __init__(self):
         Robot.__init__(self)
-        self.timeStep = int(self.getBasicTimeStep())  # retrieves the WorldInfo.basicTimeTime (ms) from the world file
+
+        # retrieves the WorldInfo.basicTimeTime (ms) from the world file
+        self.timeStep = int(self.getBasicTimeStep())
+        self.current_motion = Current_motion_manager()
+        self.fall_detector = Fall_detection(self.timeStep, self)
 
         # there are 7 controllable LEDs on the NAO robot, but we will use only the ones in the eyes
         self.leds = {
@@ -32,20 +37,21 @@ class Charlie (Robot):
             'left':  self.getDevice('Face/Led/Left')
         }
 
+        # load motion files
         self.library = Motion_library()
-        self.library.add('Shove', './Shove.motion', loop=True) # adding a custom motion to the library
 
     def run(self):
-        self.library.play('ForwardLoop')  # walk forward
-        self.library.play('Shove')        # play the shove motion
-
-        self.leds['right'].set(0xff0000)  # set the eyes to red
-        self.leds['left'].set(0xff0000)
+        self.leds['right'].set(0x0000ff)
+        self.leds['left'].set(0x0000ff)
+        self.current_motion.set(self.library.get('Stand'))
 
         while self.step(self.timeStep) != -1:
-            pass
+            t = self.getTime()
+            if self.current_motion.isOver():
+                self.current_motion.set(self.library.get('ForwardLoop'))
+            self.fall_detector.check()
 
 
 # create the Robot instance and run main loop
-wrestler = Charlie()
+wrestler = David()
 wrestler.run()

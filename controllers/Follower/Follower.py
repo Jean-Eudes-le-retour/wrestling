@@ -21,15 +21,12 @@ Depending on the fall direction, the robot will play a different motion, which i
 
 from controller import Robot, Motion
 from enum import Enum
-import base64
 import sys
-import os
 from scipy.spatial.transform import Rotation as R
 
-sys.path.append('../utils')
-import image
+sys.path.append('..')
+import utils.image
 
-import ikpy
 from ikpy.chain import Chain
 
 try:
@@ -53,8 +50,7 @@ class Wrestler (Robot):
         Robot.__init__(self)
 
         # retrieves the WorldInfo.basicTimeTime (ms) from the world file
-        # IK solver is quite heavy, so we will run only every 2 time steps
-        self.timeStep = int(2 * self.getBasicTimeStep())
+        self.timeStep = int(self.getBasicTimeStep())
         self.state = State.IDLE
         self.startTime = None
         self.currentMotion = None
@@ -236,16 +232,16 @@ class Wrestler (Robot):
         return R.from_rotvec((np.sin(theta/2) * rotation_amount + rotation_amount) * np.array([0, 0, 1])).as_matrix()
 
     def _image_processing(self):
-        img = image.get_cv_image_from_camera(self.camera)
+        img = utils.image.get_cv_image_from_camera(self.camera)
 
-        largest_contour, cx, cy = image.locate_opponent(img)
+        largest_contour, cx, cy = utils.image.locate_opponent(img)
         output = img.copy()
         if largest_contour is not None:
             cv2.drawContours(output, [largest_contour], 0, (255, 255, 0), 1)
         output = cv2.circle(output, (cx, cy), radius=2,
                             color=(0, 0, 255), thickness=-1)
 
-        image.send_image_to_robot_window(self, output)
+        utils.image.send_image_to_robot_window(self, output)
         return cx
 
     def frontFall(self, time):

@@ -21,10 +21,10 @@ Depending on the fall direction, the robot will play a different motion, which i
 
 import sys
 from controller import Robot
-sys.path.append('../utils')
-from accelerometer import Accelerometer
-from fsm import FiniteStateMachine
-from motion import Current_motion_manager, Motion_library
+sys.path.append('..')
+from utils.accelerometer import Accelerometer
+from utils.fsm import FiniteStateMachine
+from utils.motion import Current_motion_manager, Motion_library
 
 class David (Robot):
     def __init__(self):
@@ -32,9 +32,16 @@ class David (Robot):
 
         # retrieves the WorldInfo.basicTimeTime (ms) from the world file
         self.timeStep = int(self.getBasicTimeStep())
+        # the Finite State Machine (FSM) is a way of representing a robot's behavior as a sequence of states
         self.fsm = FiniteStateMachine(
             states=['DEFAULT', 'BLOCKING_MOTION', 'FRONT_FALL', 'BACK_FALL'],
-            initial_state='DEFAULT'
+            initial_state='DEFAULT',
+            actions={
+                'BLOCKING_MOTION': self.pending,
+                'DEFAULT': self.walk,
+                'FRONT_FALL': self.frontFall,
+                'BACK_FALL': self.backFall
+            }
         )
 
         # accelerometer
@@ -63,34 +70,22 @@ class David (Robot):
         while self.step(self.timeStep) != -1:
             t = self.getTime()
             self.detectFall()
-            self.stateAction(t)
+            self.fsm.execute_action()
     
     def detectFall(self):
-        ''' Rudimentary fall detector. Manages transitions to the correct state'''
+        """Detect a fall and update the FSM state."""
         self.accelerometer.update()
-        accelerometer_average = self.accelerometer.getAverage()
-
-        if accelerometer_average[0] < -7:
+        [acc_x, acc_y, _] = self.accelerometer.getAverage()
+        if acc_x < -7:
             self.fsm.transition_to('FRONT_FALL')
-        if accelerometer_average[0] > 7:
+        elif acc_x > 7:
             self.fsm.transition_to('BACK_FALL')
-        if accelerometer_average[1] < -7:
+        if acc_y < -7:
             # Fell to its right, pushing itself on its back
             self.RShoulderRoll.setPosition(-1.2)
-        if accelerometer_average[1] > 7:
+        elif acc_y > 7:
             # Fell to its left, pushing itself on its back
             self.LShoulderRoll.setPosition(1.2)
-
-    def stateAction(self, t):
-        state = self.fsm.current_state
-        if state == 'BLOCKING_MOTION':
-            self.pending()
-        elif state == 'DEFAULT':
-            self.walk()
-        elif state == 'FRONT_FALL':
-            self.frontFall()
-        elif state == 'BACK_FALL':
-            self.backFall()
 
     def pending(self):
         # waits for the current motion to finish before doing anything else

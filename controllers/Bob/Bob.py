@@ -17,8 +17,8 @@
 
 import sys
 from controller import Robot
-sys.path.append('../utils') # adding the utils folder to get access to some helper functions
-from motion import Motion_library
+sys.path.append('..') # adding the utils folder to get access to some helper functions
+from utils.motion import Motion_library
 
 class Bob (Robot):
     def __init__(self):
@@ -26,7 +26,7 @@ class Bob (Robot):
         # to load all the motions from the motion folder, we use the Motion_library class:
         self.library = Motion_library()
         
-        # initializing shoulder pitch motors
+        # we initialize the shoulder pitch motors using the Robot.getDevice() function:
         self.RShoulderPitch = self.getDevice("RShoulderPitch")
         self.LShoulderPitch = self.getDevice("LShoulderPitch")
     def run(self):
