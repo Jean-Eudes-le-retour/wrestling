@@ -14,9 +14,9 @@
 
 """
 Controller example for the Robot Wrestling Tournament.
-David beats Charlie by getting up after being knocked down.
 Demonstrates how to use a sensor, here an accelerometer to detect a fall.
 Depending on the fall direction, the robot will play a different motion, which is implemented by a simple Finite State Machine.
+beats Charlie by getting up after being knocked down.
 """
 
 import sys
@@ -47,13 +47,12 @@ class David (Robot):
         # accelerometer
         self.accelerometer = Accelerometer(self.getDevice('accelerometer'), self.timeStep)
 
-        # there are 7 controllable LEDs on the NAO robot, but we will use only the ones in the eyes
         self.leds = {
             'right': self.getDevice('Face/Led/Right'),
             'left':  self.getDevice('Face/Led/Left')
         }
 
-        # Shoulder roll motors
+        # Shoulder roll motors for getting up from a side fall
         self.RShoulderRoll = self.getDevice('RShoulderRoll')
         self.LShoulderRoll = self.getDevice('LShoulderRoll')
 

@@ -1,3 +1,17 @@
+# Copyright 1996-2023 Cyberbotics Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import numpy as np
 import cv2
 import base64
@@ -34,8 +48,8 @@ def get_contour_centroid(contour):
     return int(vertical_coordinate), int(horizontal_coordinate)
 
 def locate_opponent(img):
-    """Locate the opponent robot in the image."""
-    # the robot is supposed to be located at a concentration of multiple color changes (big Laplacian values)
+    """Image processing demonstration to locate the opponent robot in an image."""
+    # we suppose the robot to be located at a concentration of multiple color changes (big Laplacian values)
     laplacian = cv2.Laplacian(img, cv2.CV_8U, ksize=3)
     # those spikes are then smoothed out using a Gaussian blur to get blurry blobs
     blur = cv2.GaussianBlur(laplacian, (0, 0), 2)

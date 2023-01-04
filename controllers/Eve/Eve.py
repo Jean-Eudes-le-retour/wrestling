@@ -13,16 +13,13 @@
 # limitations under the License.
 
 """
-Controller example for the Robot Wrestling Tournament.
-David beats Charlie by getting up after being knocked down.
-Demonstrates how to use a sensor, here an accelerometer to detect a fall.
-Depending on the fall direction, the robot will play a different motion, which is implemented by a simple Finite State Machine.
+Demonstrates how to use the camera and gives an image processing example to locate the opponent.
 """
 
 from controller import Robot, Motion
 import sys
 sys.path.append('..')
-from utils.behavior import Fall_detection
+from utils.behavior import Fall_detection # David's fall detection is implemented in this class
 import utils.image
 from utils.fsm import FiniteStateMachine
 from utils.motion import Current_motion_manager

@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Minimalist controller example for the Robot Wrestling Tournament.
-   Beats Alice by moving forwards and therefore having a higher coverage."""
+"""
+Demonstrates how to use the Motion_library class to play a motion file.
+Beats Alice by moving forwards and therefore having a higher coverage.
+"""
 
 import sys
 from controller import Robot
-sys.path.append('..') # adding the utils folder to get access to some helper functions
+sys.path.append('..') # adding the utils folder to get access to some custom helper functions, have a look at it
 from utils.motion import Motion_library
 
 class Bob (Robot):
@@ -37,8 +39,9 @@ class Bob (Robot):
         self.RShoulderPitch.setPosition(1.57)  # arms in front, zombie mode
         self.LShoulderPitch.setPosition(1.57)
         # for more motor control functions, see the documentation: https://cyberbotics.com/doc/reference/motor
+        # to see the list of available devices, see the NAO documentation: https://cyberbotics.com/doc/guide/nao
 
-        timeStep = int(self.getBasicTimeStep())  # retrieves the WorldInfo.basicTimeTime (ms) from the world file
+        timeStep = int(self.getBasicTimeStep())
         while self.step(timeStep) != -1:
             pass
 

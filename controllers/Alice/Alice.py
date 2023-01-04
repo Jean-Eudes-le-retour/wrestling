@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Minimalist controller example for the Robot Wrestling Tournament.
-   Demonstrates how to play a simple motion file."""
+"""
+Minimalist controller example for the Robot Wrestling Tournament.
+Demonstrates how to play a simple motion file.
+"""
 
 from controller import Robot, Motion
 
@@ -24,8 +26,8 @@ class Alice (Robot):
         handWave = Motion('../motions/TurnLeft40.motion')  # look into this text file, it's easy to understand
         handWave.setLoop(True)
         handWave.play()
-        timeStep = int(self.getBasicTimeStep())  # retrieves the WorldInfo.basicTimeTime (ms) from the world file
-        while self.step(timeStep) != -1:  # runs the hand wave motion in a loop until Webots quits
+        timeStep = int(self.getBasicTimeStep())  # retrieves the simulation time step (ms) from the world file
+        while self.step(timeStep) != -1:  # Mandatory function to make the simulation run
             pass
 
 

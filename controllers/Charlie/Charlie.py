@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Controller example for the Robot Wrestling Tournament.
-   Demonstrates how to access sensors and actuators
-   Beats Bob by moving forwards and pushing him to the ground."""
+"""
+Controller example for the Robot Wrestling Tournament.
+Demonstrates how to access the LEDs and play a custom motion file.
+Beats Bob by moving forwards and pushing him to the ground.
+"""
 
 import sys
 from controller import Robot
