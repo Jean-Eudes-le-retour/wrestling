@@ -22,7 +22,7 @@ Depending on the fall direction, the robot will play a different motion, which i
 import sys
 from controller import Robot
 sys.path.append('..')
-from utils.accelerometer import Accelerometer
+from utils.sensors import Accelerometer
 from utils.fsm import FiniteStateMachine
 from utils.motion import Current_motion_manager, Motion_library
 

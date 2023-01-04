@@ -13,4 +13,15 @@
 # limitations under the License.
 
 import ik
-print(ik.inverse_left_leg(ik.makeTransformation(0, 50, -200, 0, 0, 0)))
+ik.np.set_printoptions(suppress=True)
+PI_4 = ik.np.pi/4
+print("PI_4", PI_4)
+# from [0, 50, -300]:
+_, left = ik.fLeftLeg([0., 0., -0.58785418, 1.15704096, -0.56918678, 0.0])
+print(left)
+
+import old_ik
+old_ik.np.set_printoptions(suppress=True)
+# [0., 50., -209.77999986, 3.14159265, 0., -3.14159265]
+result = old_ik.inverse_left_leg(old_ik.makeTransformation(left[0], left[1], left[2], left[3], left[4], left[5]))
+print(result)

@@ -8,6 +8,14 @@ def rot3x3_to_transf4x4(rot3x3):
     transf4x4[3, 3] = 1
     return transf4x4
 
+def DH(a, alpha, d, theta):
+    return np.array([
+        [np.cos(theta), -np.sin(theta), 0, a],
+        [np.sin(theta)*np.cos(alpha), np.cos(theta)*np.cos(alpha), -np.sin(alpha), -d*np.sin(alpha)],
+        [np.sin(theta)*np.sin(alpha), np.cos(theta)*np.sin(alpha), np.cos(alpha), d*np.cos(alpha)],
+        [0, 0, 0, 1]
+    ])
+
 ShoulderOffsetY 	= 98.0
 ElbowOffsetY		= 15.0
 UpperArmLength		= 105.0
@@ -73,20 +81,12 @@ TBaseLLeg = np.array([[1, 0, 0, 0],
                       [0, 0, 1, -HipOffsetZ],
                       [0, 0, 0, 1]])
 
-TEndLLeg = R.from_rotvec(np.array([math.pi, -math.pi / 2, 0.0])).as_matrix()
-TEndLLeg = rot3x3_to_transf4x4(TEndLLeg)
-TEndLLeg = np.array([[1, 0, 0, 0],
-                     [0, 1, 0, 0],
-                     [0, 0, 1, FootHeight],
-                     [0, 0, 0, 1]]).dot(TEndLLeg)
-
 TBaseLLegInv = np.array([[1, 0, 0, 0],
                          [0, 1, 0, -HipOffsetY],
                          [0, 0, 1, HipOffsetZ],
                          [0, 0, 0, 1]])
-TBaseLLegInv = np.linalg.inv(TBaseLLegInv)
 
-RotFixLLeg = R.from_rotvec(np.array([math.pi / 2 / 2, 0.0, 0.0])).as_matrix()
+RotFixLLeg = R.from_rotvec(np.array([math.pi / 2, 0.0, 0.0])).as_matrix()
 RotFixLLeg = rot3x3_to_transf4x4(RotFixLLeg)
 
 t1 = np.array([[1, 0, 0, 0],
@@ -94,10 +94,10 @@ t1 = np.array([[1, 0, 0, 0],
                [0, 0, 1, -FootHeight],
                [0, 0, 0, 1]])
 
-TEndLLegInv = R.from_rotvec(np.array([math.pi, -math.pi / 2, 0.0])).as_matrix()
-TEndLLegInv = rot3x3_to_transf4x4(TEndLLegInv)
-TEndLLegInv = t1.dot(TEndLLegInv)
-TEndLLegInv = np.linalg.inv(TEndLLegInv)
+TEndLLegInv = np.array([[1, 0, 0, 0],
+               [0, 1, 0, 0],
+               [0, 0, 1, FootHeight],
+               [0, 0, 0, 1]])
 
 def makeTransformation(px, py, pz, rx, ry, rz):
     Transf = np.zeros((4, 4))
@@ -119,13 +119,11 @@ def makeTransformation(px, py, pz, rx, ry, rz):
 def inverse_left_leg(target_point):
     return_result = []
     TtempTheta5, T4i, T5i, T6i, Ttemp, Ttemp2 = None, None, None, None, None, None
-
-    T = target_point
-    Tinit = T
-
+    Tinit = target_point
+    print("target_point: ", target_point)
     # Move the start point to the hipyawpitch point
     base = TBaseLLegInv
-    base = TBaseLLegInv.dot(T)
+    base = TBaseLLegInv.dot(target_point)
     # Move the end point to the anklePitch joint
     base = base.dot(TEndLLegInv)
 
@@ -135,6 +133,7 @@ def inverse_left_leg(target_point):
 
     # Invert the table, because we need the chain from the ankle to the hip
     Tstart = Rot
+    print("Rot: ", Rot)
     try:
         Rot = np.linalg.inv(Rot)
     except np.linalg.LinAlgError:
@@ -147,68 +146,113 @@ def inverse_left_leg(target_point):
     side2 = TibiaLength
 
     # Calculate Theta 4
-    distancesqrd = np.linalg.norm(T[:3, 3])**2
-    theta4 = math.pi - math.acos((side1**2 + side2**2 - distancesqrd) / (2 * side1 * side2)) # ERROR HERE
+    distancesqrd = np.linalg.norm(Rot[0:3, 3])**2
+    theta4 = math.pi - math.acos((side1**2 + side2**2 - distancesqrd) / (2 * side1 * side2))
+    print("theta4: ", theta4)
 
     if math.isnan(theta4):
         return return_result
 
     theta6 = math.atan(T[1, 3] / T[2, 3])
+    print("theta6: ", theta6)
 
     if theta6 < LAnkleRollLow or theta6 > LAnkleRollHigh:
         return return_result
 
-    T6i = R.from_rotvec(np.array([0.0, -math.pi / 2, 0.0, theta6])).as_matrix()
+    T6i = DH(0.0, -math.pi / 2, 0.0, theta6)
+    print("T6i: ", T6i)
     T6i = T6i.dot(RotRLeg)
 
     try:
         T6i = np.linalg.inv(T6i)
+        print("Tstart: ", Tstart)
         Tstart = Tstart.dot(T6i)
-        TtempTheta5 = Tstart
-        TtempTheta5 = np.linalg.inv(TtempTheta5)
+        print("Tstart: ", Tstart)
+        TtempTheta5 = np.linalg.inv(Tstart)
+        print("TtempTheta5: ", TtempTheta5)
     except np.linalg.LinAlgError:
         return return_result
 
-    for itter in range(2):
-        theta4 = (itter == 0) and theta4 or -theta4
+    for iter in range(2):
+        theta4 = (iter == 0) and theta4 or -theta4
 
         if theta4 < RKneePitchLow or theta4 > RKneePitchHigh:
+            print("theta4 out of range :", theta4)
             continue
 
-        T4i = R.from_rotvec(np.array([-ThighLength, 0.0, 0.0, theta4])).as_matrix()
+        T4i = DH(-ThighLength, 0.0, 0.0, theta4)
         up = TtempTheta5[1, 3] * (TibiaLength + ThighLength * math.cos(theta4)) + ThighLength * TtempTheta5[0, 3] * math.sin(theta4)
         down = ThighLength**2 * math.sin(theta4)**2 + (TibiaLength + ThighLength * math.cos(theta4))**2
         theta5 = math.asin(-up / down)
+        print("theta5: ", theta5)
         posOrNegPIt5 = (theta5 >= 0) and math.pi or -math.pi
 
         if math.isnan(theta5) and up / down < 0:
             theta5 = -math.pi / 2
         elif math.isnan(theta5):
             theta5 = math.pi / 2
-        else:
-            theta5 = math.pi / 2
 
         for i in range(2):
             if i == 0 and (theta5 < LAnklePitchLow or theta5 > LAnklePitchHigh):
+                print("theta5 out of range :", theta5)
                 continue
-            elif i == 1 and (-theta5 < LAnklePitchLow or -theta5 > LAnklePitchHigh):
+            elif i == 1 and ((posOrNegPIt5 - theta5) > LAnklePitchHigh or (posOrNegPIt5 - theta5) < LAnklePitchLow):
+                print("theta5 out of range :", theta5)
                 continue
+            elif i == 1:
+                theta5 = posOrNegPIt5 - theta5
 
 
-            T5i = R.from_rotvec(np.array([0.0, 0.0, posOrNegPIt5, theta5])).as_matrix()
-            Ttemp = T5i.dot(T4i)
-            Ttemp = Ttemp.dot(Tstart)
-            Ttemp2 = Ttemp.dot(TBaseLLeg)
-            Ttemp2 = Ttemp2.dot(TEndLLeg)
-            Ttemp2 = Ttemp2.dot(Tinit)
+            T5i = DH(-TibiaLength, 0.0, 0.0, theta5)
+            Ttemp = T4i.dot(T5i)
+            try:
+                Ttemp = np.linalg.inv(Ttemp)
+            except np.linalg.LinAlgError:
+                continue
+            Ttemp2 = Tstart.dot(Ttemp)
+            temptheta2 = math.acos(Ttemp2[1, 2])
 
-            hip_yaw_pitch = math.atan2(Ttemp2[1, 0], Ttemp2[0, 0])
-            hip_roll = math.atan2(-Ttemp2[2, 0], Ttemp2[2, 2])
-            hip_pitch = math.atan2(Ttemp2[2, 1], Ttemp2[2, 2])
-            knee_pitch = theta4
-            ankle_pitch = theta5
-            ankle_roll = theta6
+            for l in range(2):
+                if l == 0 and (temptheta2 - math.pi/2 > LHipRollHigh or temptheta2 - math.pi/2 < LHipRollLow):
+                    continue
+                elif l == 1 and (-temptheta2 - math.pi/2 > LHipRollHigh or -temptheta2 - math.pi/2 < LHipRollLow):
+                    continue
+                elif l == 0:
+                    theta2 = temptheta2 - math.pi/2
+                elif l == 1:
+                    theta2 = -temptheta2 - math.pi/2
+                    
+                theta3 = math.asin(Ttemp2[1][1] / math.sin(theta2 + math.pi/2))
+                posOrNegPIt3 = math.pi if theta3 >= 0 else -math.pi
+                
+                if math.isnan(theta3) and Ttemp2[1][1] / math.sin(theta2 + math.pi/2) < 0:
+                    theta3 = -math.pi/2
+                elif math.isnan(theta3):
+                    theta3 = math.pi/2
+                
+                for k in range(2):
+                    if k == 0 and (theta3 > LHipPitchHigh or theta3 < LHipPitchLow):
+                        continue
+                    elif k == 1 and (posOrNegPIt3 - theta3 > LHipPitchHigh or posOrNegPIt3 - theta3 < LHipPitchLow):
+                        continue
+                    elif k == 1:
+                        theta3 = posOrNegPIt3 - theta3
 
-            return_result.append([hip_yaw_pitch, hip_roll, hip_pitch, knee_pitch, ankle_pitch, ankle_roll])
+                    temptheta1 = math.acos(Ttemp2[0][2] / math.sin(theta2 + math.pi/2))
 
+                    if math.isnan(temptheta1):
+                        temptheta1 = 0
+
+                    for p in range(2):
+                        theta1 = None
+
+                        if p == 0 and (temptheta1 + math.pi/2 > LHipYawPitchHigh or -temptheta1 + math.pi/2 < LHipYawPitchLow):
+                            continue
+                        elif p == 1 and (-temptheta1 + math.pi/2 > LHipYawPitchHigh or -temptheta1 + math.pi/2 < LHipYawPitchLow):
+                            continue
+                        elif p == 0:
+                            theta1 = temptheta1 + math.pi/2
+                        elif p == 1:
+                            theta1 = -temptheta1 + math.pi/2
+            return_result.append([theta1, theta2, theta3, theta4, theta5, theta6])
     return return_result

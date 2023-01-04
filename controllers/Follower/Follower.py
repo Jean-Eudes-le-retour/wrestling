@@ -23,14 +23,17 @@ from controller import Robot, Motion
 from enum import Enum
 import sys
 from scipy.spatial.transform import Rotation as R
-
 sys.path.append('..')
+from utils.sensors import Accelerometer
+from utils.fsm import FiniteStateMachine
+from utils.motion import Current_motion_manager, Motion_library
 import utils.image
 
 from ikpy.chain import Chain
 
 try:
     import numpy as np
+    np.set_printoptions(suppress=True)
 except ImportError:
     sys.exit("Warning: 'numpy' module not found. Please check the Python modules installation instructions " +
              "at 'https://www.cyberbotics.com/doc/guide/using-python'.")
@@ -51,20 +54,24 @@ class Wrestler (Robot):
 
         # retrieves the WorldInfo.basicTimeTime (ms) from the world file
         self.timeStep = int(self.getBasicTimeStep())
-        self.state = State.IDLE
-        self.startTime = None
-        self.currentMotion = None
+        # the Finite State Machine (FSM) is a way of representing a robot's behavior as a sequence of states
+        self.fsm = FiniteStateMachine(
+            states=['DEFAULT', 'BLOCKING_MOTION', 'FRONT_FALL', 'BACK_FALL'],
+            initial_state='DEFAULT',
+            actions={
+                'BLOCKING_MOTION': self.pending,
+                'DEFAULT': self.walk,
+                'FRONT_FALL': self.frontFall,
+                'BACK_FALL': self.backFall
+            }
+        )
 
         # camera
         self.camera = self.getDevice("CameraTop")
         self.camera.enable(self.timeStep)
 
         # accelerometer
-        self.accelerometer = self.getDevice("accelerometer")
-        self.accelerometer.enable(self.timeStep)
-        self.accelerometerAverage = [0]*3
-        self.HISTORY_STEPS = 10
-        self.accelerometerHistory = [[0]*3]*self.HISTORY_STEPS
+        self.accelerometer = Accelerometer(self.getDevice('accelerometer'), self.timeStep)
 
         # there are 7 controllable LEDs on the NAO robot, but we will use only the ones in the eyes
         self.leds = []
@@ -120,40 +127,18 @@ class Wrestler (Robot):
         self.LElbowYaw = self.getDevice("LElbowYaw")
 
         # load motion files
-        self.forwards = Motion('../motions/ForwardLoop.motion')
-        self.forwards.setLoop(True)
-        self.stand = Motion('../motions/Stand.motion')
-        self.getUpFront = Motion('../motions/GetUpFront.motion')
-        self.getUpBack = Motion('../motions/GetUpBack.motion')
+        self.current_motion = Current_motion_manager()
+        self.library = Motion_library()
 
     def run(self):
         self.leds[0].set(0x0000ff)
         self.leds[1].set(0x0000ff)
-
-        self.stand.play()
-        self.currentMotion = self.stand
+        self.current_motion.set(self.library.get('Stand'))
+        self.fsm.transition_to('BLOCKING_MOTION')
 
         while self.step(self.timeStep) != -1:
-            t = self.getTime()
             self.detectFall()
-            self.stateAction(t)
-    
-    def detectFall(self):
-        # Moving average on self.HISTORY_STEPS steps
-        self.accelerometerHistory.pop(0)
-        self.accelerometerHistory.append(self.accelerometer.getValues())
-        self.accelerometerAverage = [sum(x)/self.HISTORY_STEPS for x in zip(*self.accelerometerHistory)]
-
-        if self.accelerometerAverage[0] < -7:
-            self.state = State.FRONT_FALL
-        if self.accelerometerAverage[0] > 7:
-            self.state = State.BACK_FALL
-        if self.accelerometerAverage[1] < -7:
-            # Push itself on its back
-            self.RShoulderRoll.setPosition(-1.2)
-        if self.accelerometerAverage[1] > 7:
-            # Push itself on its back
-            self.LShoulderRoll.setPosition(1.2)
+            self.fsm.execute_action()
 
     def _compute_desired_position(self, t, x_pos_norm):
         step_period = 0.5
@@ -176,30 +161,31 @@ class Wrestler (Robot):
             z[1] = h - ground_clearance * np.sin(theta)
         return x, z, theta
 
-    def _update_accelerometerAverage(self):
-        # Moving average on self.HISTORY_STEPS steps
-        self.accelerometerHistory.pop(0)
-        self.accelerometerHistory.append(self.accelerometer.getValues())
-        self.accelerometerAverage = [
-            sum(x)/self.HISTORY_STEPS for x in zip(*self.accelerometerHistory)]
+    def detectFall(self):
+        """Detect a fall and update the FSM state."""
+        self.accelerometer.update()
+        [acc_x, acc_y, _] = self.accelerometer.getAverage()
+        if acc_x < -7:
+            self.fsm.transition_to('FRONT_FALL')
+        elif acc_x > 7:
+            self.fsm.transition_to('BACK_FALL')
+        if acc_y < -7:
+            # Fell to its right, pushing itself on its back
+            self.RShoulderRoll.setPosition(-1.2)
+        elif acc_y > 7:
+            # Fell to its left, pushing itself on its back
+            self.LShoulderRoll.setPosition(1.2)
 
-    def stateAction(self, t):
-        if self.state == State.IDLE:
-            self.idle()
-        elif self.state == State.WALK:
-            self.walk(t)
-        elif self.state == State.FRONT_FALL:
-            self.frontFall(t)
-        elif self.state == State.BACK_FALL:
-            self.backFall(t)
+    def pending(self):
+        # waits for the current motion to finish before doing anything else
+        if self.current_motion.isOver():
+            self.current_motion.set(self.library.get('Stand'))
+            self.fsm.transition_to('DEFAULT')
 
-    def idle(self):
-        if self.currentMotion.isOver():
-            self.state = State.WALK
-
-    def walk(self, t):
+    def walk(self):
+        t = self.getTime()
         # compute desired feet position from feet trajectory
-        x_pos = self._image_processing()
+        x_pos = self._get_opponent_x()
         # amount of rotation depends on the x position of the opponent
         x_pos_normalized = (x_pos/80 - 1)
         # need to twist ankle + change step length for each leg
@@ -231,47 +217,24 @@ class Wrestler (Robot):
     def _z_rotation_matrix(self, theta, rotation_amount):
         return R.from_rotvec((np.sin(theta/2) * rotation_amount + rotation_amount) * np.array([0, 0, 1])).as_matrix()
 
-    def _image_processing(self):
+    def _get_opponent_x(self):
         img = utils.image.get_cv_image_from_camera(self.camera)
-
         largest_contour, cx, cy = utils.image.locate_opponent(img)
         output = img.copy()
         if largest_contour is not None:
             cv2.drawContours(output, [largest_contour], 0, (255, 255, 0), 1)
         output = cv2.circle(output, (cx, cy), radius=2,
                             color=(0, 0, 255), thickness=-1)
-
         utils.image.send_image_to_robot_window(self, output)
         return cx
 
-    def frontFall(self, time):
-        if self.startTime is None:
-            self.startTime = time
-            self._set_current_motion(self.getUpFront)
-        elif self.getUpFront.isOver():
-            self.startTime = None
-            self.state = State.IDLE
-            self._set_current_motion(self.stand)
+    def frontFall(self): 
+        self.current_motion.set(self.library.get('GetUpFront'))
+        self.fsm.transition_to('BLOCKING_MOTION')
 
-    def backFall(self, time):
-        if self.startTime is None:
-            self.startTime = time
-            self._set_current_motion(self.getUpBack)
-        elif self.getUpBack.isOver():
-            self.startTime = None
-            self.state = State.IDLE
-            self._set_current_motion(self.stand)
-
-    def _set_current_motion(self, motion):
-        self.currentMotion.stop()
-        self._reset_isOver_flag(self.currentMotion)
-        self.currentMotion = motion
-        motion.play()
-
-    def _reset_isOver_flag(self, motion):
-        motion.play()
-        motion.stop()
-
+    def backFall(self):
+        self.current_motion.set(self.library.get('GetUpBack'))
+        self.fsm.transition_to('BLOCKING_MOTION')
 
 # create the Robot instance and run main loop
 wrestler = Wrestler()

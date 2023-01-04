@@ -2,6 +2,37 @@ import numpy as np
 import cv2
 import base64
 
+def get_cv_image_from_camera(camera):
+    """Get an openCV image (BGRA) from a Webots camera."""
+    return np.frombuffer(camera.getImage(), np.uint8).reshape((camera.getHeight(), camera.getWidth(), 4))
+
+def send_image_to_robot_window(robot, img):
+    """Send an openCV image to the robot's web interface."""
+    _, im_arr = cv2.imencode('.png', img[:,:,:3])
+    im_bytes = im_arr.tobytes()
+    im_b64 = base64.b64encode(im_bytes).decode()
+    robot.wwiSendText("data:image/png;base64," + im_b64)
+
+def get_largest_contour(image):
+    """Get the largest contour in an image."""
+    contours, _ = cv2.findContours(image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    contours = sorted(contours, key=cv2.contourArea, reverse=True)
+    if len(contours) == 0:
+        return None
+    return contours[0]
+
+def get_contour_centroid(contour):
+    """Get the centroid of a contour."""
+    M = cv2.moments(contour)
+    if M['m00'] != 0:
+        vertical_coordinate = int(M['m01']/M['m00'])
+        horizontal_coordinate = int(M['m10']/M['m00'])
+    else:
+        # if the contour has an area of 0, the centroid cannot be computed this way
+        # we use the mean of the contour points instead
+        vertical_coordinate, horizontal_coordinate = np.mean(contour, axis=0)[0]
+    return int(vertical_coordinate), int(horizontal_coordinate)
+
 def locate_opponent(img):
     """Locate the opponent robot in the image."""
     # the robot is supposed to be located at a concentration of multiple color changes (big Laplacian values)
@@ -16,38 +47,10 @@ def locate_opponent(img):
         thresh, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15)))
     # the robot is assumed to be the largest contour
     largest_contour = get_largest_contour(closing)
-    # we get its centroid for an approximate opponent location
-    cx, cy = get_contour_centroid(largest_contour, img)
-    return largest_contour, cx, cy
-
-def send_image_to_robot_window(robot, img):
-    """Send an openCV image to the robot's web interface."""
-    _, im_arr = cv2.imencode('.png', img[:,:,:3])
-    im_bytes = im_arr.tobytes()
-    im_b64 = base64.b64encode(im_bytes).decode()
-    robot.wwiSendText("data:image/png;base64," + im_b64)
-
-def get_cv_image_from_camera(camera):
-    """Get an openCV image from a Webots camera."""
-    return np.frombuffer(camera.getImage(), np.uint8).reshape((camera.getHeight(), camera.getWidth(), 4))
-
-def get_largest_contour(image):
-    """Get the largest contour in an image."""
-    contours, _ = cv2.findContours(image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    contours = sorted(contours, key=cv2.contourArea, reverse=True)
-    if len(contours) == 0:
-        return None
-    return contours[0]
-
-def get_contour_centroid(contour, img):
-    """Get the centroid of a contour.
-    
-    If the contour is None, return the center of the image."""
-    try:
-        M = cv2.moments(contour)
-        cx = int(M['m10']/M['m00'])
-        cy = int(M['m01']/M['m00'])
-    except:
-        cx = img.shape[1]//2
-        cy = img.shape[0]//2
-    return cx, cy
+    if largest_contour is not None:
+        # we get its centroid for an approximate opponent location
+        vertical_coordinate, horizontal_coordinate = get_contour_centroid(largest_contour)
+        return largest_contour, vertical_coordinate, horizontal_coordinate
+    else:
+        # if no contour is found, we return None
+        return None, None, None
