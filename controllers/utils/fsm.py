@@ -12,7 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-class FiniteStateMachine:
+"""
+This module provides a basic Finite State Machine class.
+"""
+
+class Finite_state_machine:
     def __init__(self, states, initial_state, actions=None):
         """Create a finite state machine.
         

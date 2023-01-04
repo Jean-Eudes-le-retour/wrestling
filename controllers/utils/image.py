@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+This module provides functions to work with images coming from the NAO's cameras.
+"""
+
 import numpy as np
 import cv2
 import base64

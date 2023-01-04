@@ -268,9 +268,9 @@ class Wrestler (Robot):
         else:
             self._reset_X()
         if self.state == State.FRONT_FALL:
-            self.frontFall(t)
+            self.front_fall(t)
         elif self.state == State.BACK_FALL:
-            self.backFall(t)
+            self.back_fall(t)
 
     def idle(self):
         if self.currentMotion.isOver():
@@ -302,7 +302,7 @@ class Wrestler (Robot):
             motor.setPosition(command)
         self.left_previous_joints = left_target_commands
 
-    def frontFall(self, time):
+    def front_fall(self, time):
         if self.startTime is None:
             self.startTime = time
             self._set_current_motion(self.getUpFront)
@@ -311,7 +311,7 @@ class Wrestler (Robot):
             self.state = State.IDLE
             self._set_current_motion(self.stand)
 
-    def backFall(self, time):
+    def back_fall(self, time):
         if self.startTime is None:
             self.startTime = time
             self._set_current_motion(self.getUpBack)

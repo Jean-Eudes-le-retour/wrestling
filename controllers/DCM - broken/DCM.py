@@ -16,7 +16,7 @@ import sys
 from controller import Robot
 sys.path.append('..')
 from utils.sensors import Accelerometer
-from utils.fsm import FiniteStateMachine
+from utils.fsm import Finite_state_machine
 from utils.motion import Current_motion_manager, Motion_library
 from ikpy.chain import Chain
 
@@ -90,23 +90,23 @@ class Eliot (Robot):
         Robot.__init__(self)
 
         # retrieves the WorldInfo.basicTimeTime (ms) from the world file
-        self.timeStep = int(self.getBasicTimeStep())
+        self.time_step = int(self.getBasicTimeStep())
         self.i = 0
         # the Finite State Machine (FSM) is a way of representing a robot's behavior as a sequence of states
-        self.fsm = FiniteStateMachine(
+        self.fsm = Finite_state_machine(
             states=['DEFAULT', 'BLOCKING_MOTION', 'FRONT_FALL', 'BACK_FALL', 'END'],
             initial_state='DEFAULT',
             actions={
                 'BLOCKING_MOTION': self.pending,
                 'DEFAULT': self.walk,
-                'FRONT_FALL': self.frontFall,
-                'BACK_FALL': self.backFall,
+                'FRONT_FALL': self.front_fall,
+                'BACK_FALL': self.back_fall,
                 'END': self.end
             }
         )
 
         # accelerometer
-        self.accelerometer = Accelerometer(self.getDevice('accelerometer'), self.timeStep)
+        self.accelerometer = Accelerometer(self.getDevice('accelerometer'), self.time_step)
 
         # there are 7 controllable LEDs on the NAO robot, but we will use only the ones in the eyes
         self.leds = {
@@ -143,7 +143,7 @@ class Eliot (Robot):
                 motor = self.getDevice(link.name)
                 # motor.setVelocity(1.0)
                 position_sensor = motor.getPositionSensor()
-                position_sensor.enable(self.timeStep)
+                position_sensor.enable(self.time_step)
                 self.L_leg_motors.append(motor)
 
         self.R_leg_motors = []
@@ -152,7 +152,7 @@ class Eliot (Robot):
                 motor = self.getDevice(link.name)
                 # motor.setVelocity(1.0)
                 position_sensor = motor.getPositionSensor()
-                position_sensor.enable(self.timeStep)
+                position_sensor.enable(self.time_step)
                 self.R_leg_motors.append(motor)
         
         # Inverse kinematics seed
@@ -164,14 +164,14 @@ class Eliot (Robot):
         self.leds['left'].set(0x0000ff)
         self.current_motion.set(self.library.get('Stand'))
         self.fsm.transition_to('BLOCKING_MOTION')
-        while self.step(self.timeStep) != -1:
-            #self.detectFall()
+        while self.step(self.time_step) != -1:
+            #self.detect_fall()
             self.fsm.execute_action()
     
-    def detectFall(self):
+    def detect_fall(self):
         """Detect a fall and update the FSM state."""
-        self.accelerometer.update()
-        [acc_x, acc_y, _] = self.accelerometer.getAverage()
+        self.accelerometer.update_average()
+        [acc_x, acc_y, _] = self.accelerometer.get_average()
         if acc_x < -7:
             self.fsm.transition_to('FRONT_FALL')
         elif acc_x > 7:
@@ -225,11 +225,11 @@ class Eliot (Robot):
         self.left_previous_joints = left_target_commands
         self.i += 1
 
-    def frontFall(self): 
+    def front_fall(self): 
         self.current_motion.set(self.library.get('GetUpFront'))
         self.fsm.transition_to('BLOCKING_MOTION')
 
-    def backFall(self):
+    def back_fall(self):
         self.current_motion.set(self.library.get('GetUpBack'))
         self.fsm.transition_to('BLOCKING_MOTION')
     

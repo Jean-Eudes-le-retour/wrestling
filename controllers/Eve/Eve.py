@@ -21,7 +21,7 @@ import sys
 sys.path.append('..')
 from utils.behavior import Fall_detection # David's fall detection is implemented in this class
 import utils.image
-from utils.fsm import FiniteStateMachine
+from utils.fsm import Finite_state_machine
 from utils.motion import Current_motion_manager
 from utils.utils import Average
 
@@ -43,9 +43,9 @@ class Eve (Robot):
         Robot.__init__(self)
 
         # retrieves the WorldInfo.basicTimeTime (ms) from the world file
-        self.timeStep = int(self.getBasicTimeStep())
+        self.time_step = int(self.getBasicTimeStep())
 
-        self.fsm = FiniteStateMachine(
+        self.fsm = Finite_state_machine(
             states=['CHOOSE_ACTION', 'BLOCKING_MOTION'],
             initial_state='CHOOSE_ACTION',
             actions={
@@ -56,7 +56,7 @@ class Eve (Robot):
 
         # camera
         self.camera = self.getDevice("CameraTop")
-        self.camera.enable(self.timeStep)
+        self.camera.enable(self.time_step)
 
         # there are 7 controllable LEDs on the NAO robot, but we will use only the ones in the eyes
         self.leds = []
@@ -67,7 +67,7 @@ class Eve (Robot):
         self.RShoulderRoll = self.getDevice("RShoulderRoll")
         self.LShoulderRoll = self.getDevice("LShoulderRoll")
 
-        self.fall_detector = Fall_detection(self.timeStep, self)
+        self.fall_detector = Fall_detection(self.time_step, self)
 
         self.current_motion = Current_motion_manager()
         # load motion files
@@ -83,8 +83,8 @@ class Eve (Robot):
         self.leds[0].set(0x0000ff)
         self.leds[1].set(0x0000ff)
 
-        while self.step(self.timeStep) != -1:
-            self.opponent_position.updateAverage(self._get_normalized_opponent_horizontal_position())
+        while self.step(self.time_step) != -1:
+            self.opponent_position.update_average(self._get_normalized_opponent_horizontal_position())
             self.fall_detector.check()
             self.fsm.execute_action()
 

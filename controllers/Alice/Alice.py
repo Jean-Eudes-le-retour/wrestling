@@ -23,11 +23,11 @@ from controller import Robot, Motion
 class Alice (Robot):
     def run(self):
         # motion files are text files containing pre-recorded positions of the robot's joints
-        handWave = Motion('../motions/TurnLeft40.motion')  # look into this text file, it's easy to understand
+        handWave = Motion('../motions/HandWave.motion')  # look into this text file, it's easy to understand
         handWave.setLoop(True)
         handWave.play()
-        timeStep = int(self.getBasicTimeStep())  # retrieves the simulation time step (ms) from the world file
-        while self.step(timeStep) != -1:  # Mandatory function to make the simulation run
+        time_step = int(self.getBasicTimeStep())  # retrieves the simulation time step (ms) from the world file
+        while self.step(time_step) != -1:  # Mandatory function to make the simulation run
             pass
 
 

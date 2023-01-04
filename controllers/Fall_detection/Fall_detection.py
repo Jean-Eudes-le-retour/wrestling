@@ -27,9 +27,9 @@ class David (Robot):
         Robot.__init__(self)
 
         # retrieves the WorldInfo.basicTimeTime (ms) from the world file
-        self.timeStep = int(self.getBasicTimeStep())
+        self.time_step = int(self.getBasicTimeStep())
         self.current_motion = Current_motion_manager()
-        self.fall_detector = Fall_detection(self.timeStep, self)
+        self.fall_detector = Fall_detection(self.time_step, self)
 
         # there are 7 controllable LEDs on the NAO robot, but we will use only the ones in the eyes
         self.leds = {
@@ -45,7 +45,7 @@ class David (Robot):
         self.leds['left'].set(0x0000ff)
         self.current_motion.set(self.library.get('Stand'))
 
-        while self.step(self.timeStep) != -1:
+        while self.step(self.time_step) != -1:
             t = self.getTime()
             if self.current_motion.isOver():
                 self.current_motion.set(self.library.get('ForwardLoop'))

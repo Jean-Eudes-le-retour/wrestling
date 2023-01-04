@@ -26,7 +26,7 @@ from utils.motion import Motion_library
 class Charlie (Robot):
     def __init__(self):
         Robot.__init__(self)
-        self.timeStep = int(self.getBasicTimeStep())  # retrieves the WorldInfo.basicTimeTime (ms) from the world file
+        self.time_step = int(self.getBasicTimeStep())  # retrieves the WorldInfo.basicTimeTime (ms) from the world file
 
         # there are 7 controllable LEDs on the NAO robot, but we will use only the ones in the eyes
         self.leds = {
@@ -44,7 +44,7 @@ class Charlie (Robot):
         self.leds['right'].set(0xff0000)  # set the eyes to red
         self.leds['left'].set(0xff0000)
 
-        while self.step(self.timeStep) != -1:
+        while self.step(self.time_step) != -1:
             pass
 
 

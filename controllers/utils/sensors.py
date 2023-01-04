@@ -12,42 +12,47 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+This module provides a set of classes to interact with the robot's sensors.
+"""
+
+import sys
+sys.path.append('..')
+from utils.utils import Average
+
 class Accelerometer():
     """Class that provides an interface to the accelerometer sensor."""
 
-    def __init__(self, device, timeStep, historySteps=10):
+    def __init__(self, device, time_step, history_steps=10):
         self.device = device
-        self.device.enable(timeStep)
-        self.average = [0]*3
-        self.HISTORY_STEPS = historySteps
-        self.history = [[0]*3]*self.HISTORY_STEPS
+        self.device.enable(time_step)
+        self.average = Average(dimensions=3, history_steps=history_steps)
 
-    def getValues(self):
+    def get_values(self):
         """Returns the current accelerometer values."""
         return self.device.getValues()
 
-    def getAverage(self):
+    def get_average(self):
         """Returns the current accelerometer average of the last HISTORY_STEPS values."""
-        return self.average
+        return self.average.average
 
-    def _updateAverage(self, values):
+    def update_average(self):
         """Updates the accelerometer average."""
-        self.history.pop(0)
-        self.history.append(values)
-        self.average = [sum(col)/self.HISTORY_STEPS for col in zip(*self.history)]
+        values = self.get_values()
+        self.average.update_average(values)
 
-    def update(self):
-        """Updates the accelerometer average and returns the current accelerometer values."""
-        values = self.getValues()
-        self._updateAverage(values)
-        return values
+    def get_new_average(self):
+        """Updates the accelerometer average and returns it."""
+        values = self.get_values()
+        self.average.update_average(values)
+        return self.get_average()
 
 class IMU():
     """Class that provides an interface to the IMU sensor."""
 
-    def __init__(self, device, timeStep):
+    def __init__(self, device, time_step):
         self.device = device
-        self.device.enable(timeStep)
+        self.device.enable(time_step)
 
     def getRollPitchYaw(self):
         """Returns the current IMU values."""
@@ -56,9 +61,9 @@ class IMU():
 class GPS():
     """Class that provides an interface to the GPS sensor."""
 
-    def __init__(self, device, timeStep):
+    def __init__(self, device, time_step):
         self.device = device
-        self.device.enable(timeStep)
+        self.device.enable(time_step)
 
     def getValues(self):
         """Returns the current GPS values."""

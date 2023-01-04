@@ -41,8 +41,8 @@ class Bob (Robot):
         # for more motor control functions, see the documentation: https://cyberbotics.com/doc/reference/motor
         # to see the list of available devices, see the NAO documentation: https://cyberbotics.com/doc/guide/nao
 
-        timeStep = int(self.getBasicTimeStep())
-        while self.step(timeStep) != -1:
+        time_step = int(self.getBasicTimeStep())
+        while self.step(time_step) != -1:
             pass
 
 

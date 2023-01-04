@@ -15,28 +15,28 @@
 import sys
 sys.path.append('..')
 from utils.sensors import Accelerometer
-from utils.fsm import FiniteStateMachine
+from utils.fsm import Finite_state_machine
 from utils.motion import Current_motion_manager, Motion_library
 
 class Fall_detection:
-    def __init__(self, timeStep, robot):
-        self.timeStep = timeStep
+    def __init__(self, time_step, robot):
+        self.time_step = time_step
         self.robot = robot
         # the Finite State Machine (FSM) is a way of representing a robot's behavior as a sequence of states
-        self.fsm = FiniteStateMachine(
+        self.fsm = Finite_state_machine(
             states=['NO_FALL', 'BLOCKING_MOTION', 'SIDE_FALL', 'FRONT_FALL', 'BACK_FALL'],
             initial_state='NO_FALL',
             actions={
                 'NO_FALL': self.wait,
                 'BLOCKING_MOTION': self.pending,
                 'SIDE_FALL': self.wait,
-                'FRONT_FALL': self.frontFall,
-                'BACK_FALL': self.backFall
+                'FRONT_FALL': self.front_fall,
+                'BACK_FALL': self.back_fall
             }
         )
 
         # accelerometer
-        self.accelerometer = Accelerometer(robot.getDevice('accelerometer'), self.timeStep)
+        self.accelerometer = Accelerometer(robot.getDevice('accelerometer'), self.time_step)
 
         # Shoulder roll motors
         self.RShoulderRoll = robot.getDevice('RShoulderRoll')
@@ -47,18 +47,18 @@ class Fall_detection:
         self.library = Motion_library()
 
     def check(self):
-        if self.detectFall():
+        if self.detect_fall():
             print('Fall detected - running recovery motion')
             while self.fsm.current_state != 'NO_FALL':
                 # block everything and run the recovery motion until the robot is back on its feet
-                self.detectFall()
+                self.detect_fall()
                 self.fsm.execute_action()
-                self.robot.step(self.timeStep)
+                self.robot.step(self.time_step)
     
-    def detectFall(self):
+    def detect_fall(self):
         """Detect a fall and update the FSM state."""
-        self.accelerometer.update()
-        [acc_x, acc_y, _] = self.accelerometer.getAverage()
+        self.accelerometer.update_average()
+        [acc_x, acc_y, _] = self.accelerometer.get_average()
         fall = False
         if acc_x < -7:
             self.fsm.transition_to('FRONT_FALL')
@@ -84,11 +84,11 @@ class Fall_detection:
             self.current_motion.set(self.library.get('Stand'))
             self.fsm.transition_to('NO_FALL')
 
-    def frontFall(self): 
+    def front_fall(self): 
         self.current_motion.set(self.library.get('GetUpFront'))
         self.fsm.transition_to('BLOCKING_MOTION')
 
-    def backFall(self):
+    def back_fall(self):
         self.current_motion.set(self.library.get('GetUpBack'))
         self.fsm.transition_to('BLOCKING_MOTION')
     

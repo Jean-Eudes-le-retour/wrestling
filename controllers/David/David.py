@@ -23,7 +23,7 @@ import sys
 from controller import Robot
 sys.path.append('..')
 from utils.sensors import Accelerometer
-from utils.fsm import FiniteStateMachine
+from utils.fsm import Finite_state_machine
 from utils.motion import Current_motion_manager, Motion_library
 
 class David (Robot):
@@ -31,21 +31,21 @@ class David (Robot):
         Robot.__init__(self)
 
         # retrieves the WorldInfo.basicTimeTime (ms) from the world file
-        self.timeStep = int(self.getBasicTimeStep())
+        self.time_step = int(self.getBasicTimeStep())
         # the Finite State Machine (FSM) is a way of representing a robot's behavior as a sequence of states
-        self.fsm = FiniteStateMachine(
+        self.fsm = Finite_state_machine(
             states=['DEFAULT', 'BLOCKING_MOTION', 'FRONT_FALL', 'BACK_FALL'],
             initial_state='DEFAULT',
             actions={
                 'BLOCKING_MOTION': self.pending,
                 'DEFAULT': self.walk,
-                'FRONT_FALL': self.frontFall,
-                'BACK_FALL': self.backFall
+                'FRONT_FALL': self.front_fall,
+                'BACK_FALL': self.back_fall
             }
         )
 
         # accelerometer
-        self.accelerometer = Accelerometer(self.getDevice('accelerometer'), self.timeStep)
+        self.accelerometer = Accelerometer(self.getDevice('accelerometer'), self.time_step)
 
         self.leds = {
             'right': self.getDevice('Face/Led/Right'),
@@ -66,15 +66,14 @@ class David (Robot):
         self.current_motion.set(self.library.get('Stand'))
         self.fsm.transition_to('BLOCKING_MOTION')
 
-        while self.step(self.timeStep) != -1:
+        while self.step(self.time_step) != -1:
             t = self.getTime()
-            self.detectFall()
+            self.detect_fall()
             self.fsm.execute_action()
     
-    def detectFall(self):
+    def detect_fall(self):
         """Detect a fall and update the FSM state."""
-        self.accelerometer.update()
-        [acc_x, acc_y, _] = self.accelerometer.getAverage()
+        [acc_x, acc_y, _] = self.accelerometer.get_new_average()
         if acc_x < -7:
             self.fsm.transition_to('FRONT_FALL')
         elif acc_x > 7:
@@ -96,11 +95,11 @@ class David (Robot):
         if self.current_motion.get() != self.library.get('ForwardLoop'):
             self.current_motion.set(self.library.get('ForwardLoop'))
 
-    def frontFall(self): 
+    def front_fall(self): 
         self.current_motion.set(self.library.get('GetUpFront'))
         self.fsm.transition_to('BLOCKING_MOTION')
 
-    def backFall(self):
+    def back_fall(self):
         self.current_motion.set(self.library.get('GetUpBack'))
         self.fsm.transition_to('BLOCKING_MOTION')
 

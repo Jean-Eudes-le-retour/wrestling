@@ -42,17 +42,17 @@ class Wrestler (Robot):
         Robot.__init__(self)
 
         # retrieves the WorldInfo.basicTimeTime (ms) from the world file
-        self.timeStep = int(self.getBasicTimeStep())
+        self.time_step = int(self.getBasicTimeStep())
         self.library = Motion_library()
 
         # camera
         self.camera = self.getDevice("CameraTop")
-        self.camera.enable(4 * self.timeStep)
+        self.camera.enable(4 * self.time_step)
 
     def run(self):
         self.library.play('Stand')
 
-        while self.step(self.timeStep) != -1:
+        while self.step(self.time_step) != -1:
             t = self.getTime()
 
             self._image_processing()

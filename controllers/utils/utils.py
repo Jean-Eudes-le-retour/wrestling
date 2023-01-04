@@ -13,29 +13,29 @@
 # limitations under the License.
 
 class Average():
-    """Class that provides an interface to the average of a list of values."""
+    """Class that takes care of the computation of a list of values' running average."""
 
-    def __init__(self, dimensions, historySteps=10):
-        self.HISTORY_STEPS = historySteps
+    def __init__(self, dimensions, history_steps=10):
+        self.HISTORY_STEPS = history_steps
         if dimensions > 1:
-            self.isVector = True
+            self.is_vector = True
             self.average = [0]*dimensions
             self.history = [[0]*dimensions]*self.HISTORY_STEPS
         else:
-            self.isVector = False
+            self.is_vector = False
             self.average = 0
             self.history = [0]*self.HISTORY_STEPS
 
     def get_new_average(self, value):
         """Returns the current accelerometer average of the last HISTORY_STEPS values."""
-        self.updateAverage(value)
+        self.update_average(value)
         return self.average
 
-    def updateAverage(self, value):
+    def update_average(self, value):
         """Updates the average with a new value."""
         self.history.pop(0)
         self.history.append(value)
-        if self.isVector:
+        if self.is_vector:
             self.average = [sum(col)/self.HISTORY_STEPS for col in zip(*self.history)]
         else:
             self.average = sum(self.history)/self.HISTORY_STEPS

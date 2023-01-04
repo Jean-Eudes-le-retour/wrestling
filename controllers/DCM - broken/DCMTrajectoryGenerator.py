@@ -4,12 +4,12 @@ from matplotlib import pyplot as plt
 from matplotlib.patches import Rectangle
 
 class DCMTrajectoryGenerator:
-    def __init__(self, timeStep, pelvisHeight, stepTiming, doubleSupportTime, numberOfFootSteps):
-        self.timeStep = timeStep
+    def __init__(self, time_step, pelvisHeight, stepTiming, doubleSupportTime, numberOfFootSteps):
+        self.time_step = time_step
         self.CoMHeight = pelvisHeight # We assume that CoM and pelvis are the same point
         self.stepDuration = stepTiming
         self.dsTime = doubleSupportTime
-        self.numberOfSamplesPerSecond =  1/timeStep #Number of sampling of the trajectory in each second
+        self.numberOfSamplesPerSecond =  1/time_step #Number of sampling of the trajectory in each second
         self.numberOfSteps = numberOfFootSteps #This is the desired number of steps for walking
         self.alpha = 0.5 # We have 0<alpha<1 that is used for double support simulation
         self.DCM = list("")
@@ -33,7 +33,7 @@ class DCMTrajectoryGenerator:
         self.CoMDot[0] = 0
         for kk in range(0,self.CoM.shape[0]-1):
             self.CoMDot[kk + 1] = self.omega*(self.DCM[kk] - self.CoM[kk]); #equation (3) in jupyter notebook
-            self.CoM[kk + 1] = self.CoM[kk] + self.CoMDot[kk + 1]*self.timeStep; #Simple euler numerical integration
+            self.CoM[kk + 1] = self.CoM[kk] + self.CoMDot[kk + 1]*self.time_step; #Simple euler numerical integration
             self.CoM[kk + 1][2] = self.CoMHeight
         return self.CoM
 
@@ -62,7 +62,7 @@ class DCMTrajectoryGenerator:
         self.DCMVelocity[0] = 0
         self.CoPTrajectory[0] = self.CoP[0]
         for kk in range(0,self.CoM.shape[0]-1):
-            self.DCMVelocity[kk + 1] = (self.DCM[kk + 1] - self.DCM[kk])/self.timeStep; #Numerical differentiation for solving DCM Velocity
+            self.DCMVelocity[kk + 1] = (self.DCM[kk + 1] - self.DCM[kk])/self.time_step; #Numerical differentiation for solving DCM Velocity
             self.CoPTrajectory[kk + 1] = self.DCM[kk + 1] - self.DCMVelocity[kk + 1]/self.omega; #Use equation (10) to find CoP by having DCM and DCM Velocity
         pass
 
@@ -117,15 +117,15 @@ class DCMTrajectoryGenerator:
         for stepNumber in range(np.size(self.CoP,0)):
             a, b, c, d = doubleSupportInterpolationCoefficients[stepNumber]; #use doubleSupportInterpolationCoefficients vector
             if(stepNumber==0): #notice double support duration is not the same as other steps
-                doubleSupportTrajectory = np.zeros((int((1 - self.alpha)*self.dsTime*(1/self.timeStep)),3))
-                for t in range(int((1 - self.alpha)*self.dsTime*(1/self.timeStep))):
-                    tt = t*self.timeStep;
+                doubleSupportTrajectory = np.zeros((int((1 - self.alpha)*self.dsTime*(1/self.time_step)),3))
+                for t in range(int((1 - self.alpha)*self.dsTime*(1/self.time_step))):
+                    tt = t*self.time_step;
                     doubleSupportTrajectory[t] = a*tt**3 + b*tt**2 + c*tt + d; #use equation 16 (only the DCM position component)
                 listOfDoubleSupportTrajectories.append(doubleSupportTrajectory)
             else:
-                doubleSupportTrajectory = np.zeros((int(self.dsTime*(1/self.timeStep)),3))
-                for t in range(int(self.dsTime*(1/self.timeStep))):
-                    tt = t*self.timeStep;
+                doubleSupportTrajectory = np.zeros((int(self.dsTime*(1/self.time_step)),3))
+                for t in range(int(self.dsTime*(1/self.time_step))):
+                    tt = t*self.time_step;
                     doubleSupportTrajectory[t] = a*tt**3 + b*tt**2 + c*tt + d; #use equation 16 (only the DCM position component)
                 listOfDoubleSupportTrajectories.append(doubleSupportTrajectory)      
 
@@ -135,10 +135,10 @@ class DCMTrajectoryGenerator:
         for stepNumber in range(self.CoP.shape[0]):
             if stepNumber == 0:
                 #the first step starts with double support and notice double support duration is not the same as other steps
-                DCMCompleteTrajectory[0:int((1 - self.alpha)*self.dsTime/self.timeStep)] = listOfDoubleSupportTrajectories[stepNumber][:]#fill the corresponding interval for DCM index for double support part
+                DCMCompleteTrajectory[0:int((1 - self.alpha)*self.dsTime/self.time_step)] = listOfDoubleSupportTrajectories[stepNumber][:]#fill the corresponding interval for DCM index for double support part
             else: 
-                start = stepNumber*int(self.stepDuration/self.timeStep) - int(self.alpha*self.dsTime/self.timeStep);
-                end = start + int(self.dsTime*(1/self.timeStep));
+                start = stepNumber*int(self.stepDuration/self.time_step) - int(self.alpha*self.dsTime/self.time_step);
+                end = start + int(self.dsTime*(1/self.time_step));
                 DCMCompleteTrajectory[start:end] = listOfDoubleSupportTrajectories[stepNumber][:]
 
         self.l = listOfDoubleSupportTrajectories;
