@@ -48,7 +48,6 @@ class Fall_detection:
 
     def check(self):
         if self.detect_fall():
-            print('Fall detected - running recovery motion')
             while self.fsm.current_state != 'NO_FALL':
                 # block everything and run the recovery motion until the robot is back on its feet
                 self.detect_fall()

@@ -6,7 +6,6 @@ maximizedDockId: -1
 centralWidgetVisible: 1
 orthographicViewHeight: 1
 textFiles: -1
-robotWindow: wrestler red
 consoles: Console:All:All
 renderingDevicePerspectives: wrestler blue:CameraBottom;0;1;0.0165354;0.207493
 renderingDevicePerspectives: wrestler blue:CameraTop;0;1;0.148819;0.0259366

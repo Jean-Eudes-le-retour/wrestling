@@ -13,10 +13,7 @@
 # limitations under the License.
 
 """
-Controller example for the Robot Wrestling Tournament.
-David beats Charlie by getting up after being knocked down.
-Demonstrates how to use a sensor, here an accelerometer to detect a fall.
-Depending on the fall direction, the robot will play a different motion, which is implemented by a simple Finite State Machine.
+Demonstrates the gait manager (inverse kinematics + simple ellipsoid path).
 """
 
 from controller import Robot
@@ -24,12 +21,10 @@ from enum import Enum
 import sys
 from scipy.spatial.transform import Rotation as R
 sys.path.append('..')
+from utils.behavior import Fall_detection
 from utils.sensors import Accelerometer
-from utils.fsm import Finite_state_machine
-from utils.motion import Current_motion_manager, Motion_library
+from utils.utils import Kinematics
 import utils.image
-
-from ikpy.chain import Chain
 
 try:
     import numpy as np
@@ -48,97 +43,22 @@ State = Enum('State', ['IDLE', 'WALK', 'FRONT_FALL', 'BACK_FALL'])
 IKPY_MAX_ITERATIONS = 4
 
 
-class Wrestler (Robot):
+class Fatima (Robot):
     def __init__(self):
         Robot.__init__(self)
-
-        # retrieves the WorldInfo.basicTimeTime (ms) from the world file
+        # IK is heavy, so we only compute it every 2 time steps
         self.time_step = int(self.getBasicTimeStep())
-        # the Finite State Machine (FSM) is a way of representing a robot's behavior as a sequence of states
-        self.fsm = Finite_state_machine(
-            states=['DEFAULT', 'BLOCKING_MOTION', 'FRONT_FALL', 'BACK_FALL'],
-            initial_state='DEFAULT',
-            actions={
-                'BLOCKING_MOTION': self.pending,
-                'DEFAULT': self.walk,
-                'FRONT_FALL': self.front_fall,
-                'BACK_FALL': self.back_fall
-            }
-        )
+        self.kinematics = Kinematics(self, 2 * self.time_step)
 
-        # camera
         self.camera = self.getDevice("CameraTop")
         self.camera.enable(self.time_step)
-
-        # accelerometer
         self.accelerometer = Accelerometer(self.getDevice('accelerometer'), self.time_step)
-
-        # there are 7 controllable LEDs on the NAO robot, but we will use only the ones in the eyes
-        self.leds = []
-        self.leds.append(self.getDevice('Face/Led/Right'))
-        self.leds.append(self.getDevice('Face/Led/Left'))
-
-        self.left_leg_chain = Chain.from_urdf_file(
-            '../../protos/nao.urdf',
-            base_elements=['base_link', 'LHipYawPitch'],
-            active_links_mask=[False, True, True,
-                               True, True, True, True, False]
-        )
-
-        self.right_leg_chain = Chain.from_urdf_file(
-            '../../protos/nao.urdf',
-            base_elements=['base_link', 'RHipYawPitch'],
-            active_links_mask=[False, True, True,
-                               True, True, True, True, False]
-        )
-
-        self.L_leg_motors = []
-        for link in self.left_leg_chain.links:
-            if link.name != 'Base link' and link.name != "LLeg_effector_fixedjoint":
-                motor = self.getDevice(link.name)
-                #motor.setVelocity(1.0)
-                position_sensor = motor.getPositionSensor()
-                position_sensor.enable(self.time_step)
-                self.L_leg_motors.append(motor)
-        
-        self.R_leg_motors = []
-        for link in self.right_leg_chain.links:
-            if link.name != 'Base link' and link.name != "RLeg_effector_fixedjoint":
-                motor = self.getDevice(link.name)
-                #motor.setVelocity(1.0)
-                position_sensor = motor.getPositionSensor()
-                position_sensor.enable(self.time_step)
-                self.R_leg_motors.append(motor)
-
-        self.left_previous_joints = [0, 0, 0, -0.523, 1.047, -0.524, 0, 0]
-        self.right_previous_joints = [0, 0, 0, -0.523, 1.047, -0.524, 0, 0]
-
-        # arm motors
-        self.RShoulderPitch = self.getDevice("RShoulderPitch")
-        self.LShoulderPitch = self.getDevice("LShoulderPitch")
-
-        self.RShoulderRoll = self.getDevice("RShoulderRoll")
-        self.LShoulderRoll = self.getDevice("LShoulderRoll")
-
-        self.RElbowRoll = self.getDevice("RElbowRoll")
-        self.LElbowRoll = self.getDevice("LElbowRoll")
-
-        self.RElbowYaw = self.getDevice("RElbowYaw")
-        self.LElbowYaw = self.getDevice("LElbowYaw")
-
-        # load motion files
-        self.current_motion = Current_motion_manager()
-        self.library = Motion_library()
+        self.fall_detector = Fall_detection(self.time_step, self)
 
     def run(self):
-        self.leds[0].set(0x0000ff)
-        self.leds[1].set(0x0000ff)
-        self.current_motion.set(self.library.get('Stand'))
-        self.fsm.transition_to('BLOCKING_MOTION')
-
         while self.step(self.time_step) != -1:
-            self.detect_fall()
-            self.fsm.execute_action()
+            # self.fall_detector.check()
+            self.walk()
 
     def _compute_desired_position(self, t, x_pos_norm):
         step_period = 0.5
@@ -147,7 +67,7 @@ class Wrestler (Robot):
         h = -0.29
         step_size = 0.04
         ground_clearance = 0.04
-        ground_penetration = 0.005
+        ground_penetration = 0
         x = np.zeros(2)
         step_length_modifier = 0.04
         x[0] =  (step_size - x_pos_norm * step_length_modifier * (x_pos_norm > 0)) * np.cos(theta)
@@ -161,27 +81,6 @@ class Wrestler (Robot):
             z[1] = h - ground_clearance * np.sin(theta)
         return x, z, theta
 
-    def detect_fall(self):
-        """Detect a fall and update the FSM state."""
-        self.accelerometer.update_average()
-        [acc_x, acc_y, _] = self.accelerometer.get_average()
-        if acc_x < -7:
-            self.fsm.transition_to('FRONT_FALL')
-        elif acc_x > 7:
-            self.fsm.transition_to('BACK_FALL')
-        if acc_y < -7:
-            # Fell to its right, pushing itself on its back
-            self.RShoulderRoll.setPosition(-1.2)
-        elif acc_y > 7:
-            # Fell to its left, pushing itself on its back
-            self.LShoulderRoll.setPosition(1.2)
-
-    def pending(self):
-        # waits for the current motion to finish before doing anything else
-        if self.current_motion.isOver():
-            self.current_motion.set(self.library.get('Stand'))
-            self.fsm.transition_to('DEFAULT')
-
     def walk(self):
         t = self.getTime()
         x_pos_normalized = self._get_normalized_opponent_x()
@@ -189,27 +88,13 @@ class Wrestler (Robot):
         #   c.f. Learning CPG-based Biped Locomotion with a Policy Gradient Method: Application to a Humanoid Robot
         z_angle_twist = 0.34 * x_pos_normalized
         x, z, theta = self._compute_desired_position(t, x_pos_normalized)
-        right_target_commands = self.right_leg_chain.inverse_kinematics(
-            [x[0], -0.045, z[0]],
-            self._z_rotation_matrix(theta, z_angle_twist),
-            initial_position=self.right_previous_joints,
-            max_iter=IKPY_MAX_ITERATIONS,
-            orientation_mode='all'
-        )
-        for command, motor in zip(right_target_commands[1:], self.R_leg_motors):
+        right_target_commands = self.kinematics.ik_right_leg([x[0], -0.045, z[0]], self._z_rotation_matrix(theta, z_angle_twist))
+        for command, motor in zip(right_target_commands[1:], self.kinematics.R_leg_motors):
             motor.setPosition(command)
-        self.right_previous_joints = right_target_commands
 
-        left_target_commands = self.left_leg_chain.inverse_kinematics(
-            [x[1], 0.045, z[1]],
-            self._z_rotation_matrix(theta + np.pi, z_angle_twist),
-            initial_position=self.left_previous_joints,
-            max_iter=IKPY_MAX_ITERATIONS,
-            orientation_mode='all'
-        )
-        for command, motor in zip(left_target_commands[1:], self.L_leg_motors):
+        left_target_commands = self.kinematics.ik_left_leg([x[1], 0.045, z[1]], self._z_rotation_matrix(theta, -z_angle_twist))
+        for command, motor in zip(left_target_commands[1:], self.kinematics.L_leg_motors):
             motor.setPosition(command)
-        self.left_previous_joints = left_target_commands
     
     def _z_rotation_matrix(self, theta, rotation_amount):
         return R.from_rotvec((np.sin(theta/2) * rotation_amount + rotation_amount) * np.array([0, 0, 1])).as_matrix()
@@ -227,14 +112,6 @@ class Wrestler (Robot):
             return 0
         return horizontal * 2/img.shape[1] - 1
 
-    def front_fall(self): 
-        self.current_motion.set(self.library.get('GetUpFront'))
-        self.fsm.transition_to('BLOCKING_MOTION')
-
-    def back_fall(self):
-        self.current_motion.set(self.library.get('GetUpBack'))
-        self.fsm.transition_to('BLOCKING_MOTION')
-
 # create the Robot instance and run main loop
-wrestler = Wrestler()
+wrestler = Fatima()
 wrestler.run()
