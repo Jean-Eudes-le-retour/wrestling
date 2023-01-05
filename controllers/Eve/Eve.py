@@ -19,7 +19,7 @@ Demonstrates how to use the camera and gives an image processing example to loca
 from controller import Robot, Motion
 import sys
 sys.path.append('..')
-from utils.behavior import Fall_detection # David's fall detection is implemented in this class
+from utils.routines import Fall_detection # David's fall detection is implemented in this class
 import utils.image
 from utils.fsm import Finite_state_machine
 from utils.motion import Current_motion_manager

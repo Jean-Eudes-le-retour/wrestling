@@ -19,7 +19,7 @@ Basic controller that uses the Fall_detection class to detect a fall and run a r
 import sys
 from controller import Robot
 sys.path.append('..')
-from utils.behavior import Fall_detection
+from utils.routines import Fall_detection
 from utils.motion import Motion_library, Current_motion_manager
 
 class David (Robot):

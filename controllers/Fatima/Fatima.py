@@ -20,10 +20,10 @@ from controller import Robot, Motion
 import sys
 from scipy.spatial.transform import Rotation as R
 sys.path.append('..')
-from utils.behavior import Fall_detection, Gait_manager
+from utils.routines import Fall_detection
 from utils.motion import Current_motion_manager
 from utils.sensors import Accelerometer
-from utils.utils import Kinematics
+from utils.utils import Kinematics, Gait_manager
 import utils.image
 
 try:
@@ -64,8 +64,8 @@ class Fatima (Robot):
     def walk(self):
         x_pos_normalized = self._get_normalized_opponent_x()
         desired_radius = 0.1 / x_pos_normalized if abs(x_pos_normalized) > 1e-3 else 1e3
-        desired_radius = 1e3
-        heading_angle = np.pi/4
+        desired_radius = 1
+        heading_angle = np.pi/2
         x, y, z, yaw = self.gait_manager.compute_leg_position(is_right=True, desired_radius=desired_radius, heading_angle=heading_angle)
         right_target_commands = self.kinematics.ik_right_leg(
             [x, y, z],
