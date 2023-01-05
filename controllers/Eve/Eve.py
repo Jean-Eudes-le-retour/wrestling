@@ -99,7 +99,7 @@ class Eve (Robot):
 
     def pending(self):
         # waits for the current motion to finish before doing anything else
-        if self.current_motion.isOver():
+        if self.current_motion.is_over():
             self.fsm.transition_to('CHOOSE_ACTION')
 
     def _get_normalized_opponent_horizontal_position(self):

@@ -23,11 +23,9 @@ from controller import Robot, Motion
 from enum import Enum
 import base64
 import sys
-import os
 from scipy.spatial.transform import Rotation as R
 import matplotlib.pyplot as plt
 
-import ikpy
 from ikpy.chain import Chain
 
 try:
@@ -273,7 +271,7 @@ class Wrestler (Robot):
             self.back_fall(t)
 
     def idle(self):
-        if self.currentMotion.isOver():
+        if self.currentMotion.is_over():
             self.state = State.WALK
 
     def walk(self, t):
@@ -306,7 +304,7 @@ class Wrestler (Robot):
         if self.startTime is None:
             self.startTime = time
             self._set_current_motion(self.getUpFront)
-        elif self.getUpFront.isOver():
+        elif self.getUpFront.is_over():
             self.startTime = None
             self.state = State.IDLE
             self._set_current_motion(self.stand)
@@ -315,18 +313,18 @@ class Wrestler (Robot):
         if self.startTime is None:
             self.startTime = time
             self._set_current_motion(self.getUpBack)
-        elif self.getUpBack.isOver():
+        elif self.getUpBack.is_over():
             self.startTime = None
             self.state = State.IDLE
             self._set_current_motion(self.stand)
 
     def _set_current_motion(self, motion):
         self.currentMotion.stop()
-        self._reset_isOver_flag(self.currentMotion)
+        self._reset_is_over_flag(self.currentMotion)
         self.currentMotion = motion
         motion.play()
 
-    def _reset_isOver_flag(self, motion):
+    def _reset_is_over_flag(self, motion):
         motion.play()
         motion.stop()
     

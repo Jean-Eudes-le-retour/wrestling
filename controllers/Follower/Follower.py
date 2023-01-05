@@ -178,7 +178,7 @@ class Wrestler (Robot):
 
     def pending(self):
         # waits for the current motion to finish before doing anything else
-        if self.current_motion.isOver():
+        if self.current_motion.is_over():
             self.current_motion.set(self.library.get('Stand'))
             self.fsm.transition_to('DEFAULT')
 

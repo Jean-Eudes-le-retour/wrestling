@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import sys
+import numpy as np
+
 sys.path.append('..')
 from utils.sensors import Accelerometer
 from utils.fsm import Finite_state_machine
@@ -50,9 +52,9 @@ class Fall_detection:
         if self.detect_fall():
             while self.fsm.current_state != 'NO_FALL':
                 # block everything and run the recovery motion until the robot is back on its feet
-                self.detect_fall()
                 self.fsm.execute_action()
                 self.robot.step(self.time_step)
+                self.detect_fall()
     
     def detect_fall(self):
         """Detect a fall and update the FSM state."""
@@ -79,7 +81,7 @@ class Fall_detection:
 
     def pending(self):
         # waits for the current motion to finish
-        if self.current_motion.isOver():
+        if self.current_motion.is_over():
             self.current_motion.set(self.library.get('Stand'))
             self.fsm.transition_to('NO_FALL')
 
@@ -93,3 +95,51 @@ class Fall_detection:
     
     def wait(self):
         pass
+
+class Gait_manager:
+    """Simple gait generator, based on an ellipsoid path."""
+    def __init__(self, robot, time_step):
+        self.robot = robot
+        self.time_step = time_step
+        self.theta = 0
+        self.robot_height_offset = 0.32
+        self.lateral_leg_offset = 0.05
+        self.step_period = 0.4
+        self.step_length = 0.04
+        self.step_height = 0.04
+        self.step_penetration = 0.005
+    
+    def update_theta(self):
+        """Update the angle of the ellipsoid path and clip it to [0, 2pi]."""
+        self.theta = -(2 * np.pi * self.robot.getTime() / self.step_period) % (2 * np.pi)
+    
+    def compute_right_leg_position(self, desired_radius):
+        """Compute the desired position of the right leg from a desired radius (R > 0 is a right turn).
+        Derived from chapter 2 in paper:
+        G. Endo, J. Morimoto, T. Matsubara, J. Nakanishi, and G. Cheng,
+        “Learning CPG-based Biped Locomotion with a Policy Gradient Method: Application to a Humanoid Robot,”
+        The International Journal of Robotics Research, vol. 27, no. 2, pp. 213-228,
+        Feb. 2008, doi: 10.1177/0278364907084980.
+        """
+        amplitude = self.step_length * (desired_radius - self.lateral_leg_offset) / desired_radius
+        x = amplitude * np.cos(self.theta)
+        if self.theta < np.pi:
+            z = self.step_height * np.sin(self.theta) - self.robot_height_offset
+        else:
+            z = self.step_penetration * np.sin(self.theta) - self.robot_height_offset
+        yaw = - x/(desired_radius - self.lateral_leg_offset)
+        y = - self.lateral_leg_offset - (1 - np.cos(yaw)) * (desired_radius - self.lateral_leg_offset)
+        return x, y, z, yaw
+    
+    def compute_left_leg_position(self, desired_radius):
+        """Compute the desired position of the left leg from a desired radius (R > 0 is a right turn)."""
+        amplitude = self.step_length * (desired_radius + self.lateral_leg_offset) / desired_radius
+        # print('Left factor', (desired_radius + self.lateral_leg_offset) / desired_radius)
+        x = - amplitude * np.cos(self.theta)
+        if self.theta < np.pi:
+            z = - self.step_penetration * np.sin(self.theta) - self.robot_height_offset
+        else:
+            z = - self.step_height * np.sin(self.theta) - self.robot_height_offset
+        yaw = x/(desired_radius + self.lateral_leg_offset)
+        y = self.lateral_leg_offset - (1 - np.cos(yaw)) * (desired_radius + self.lateral_leg_offset)
+        return x, y, z, yaw

@@ -23,7 +23,7 @@ class Current_motion_manager:
         """Returns the motion that is currently playing."""
         return self.currentMotion
     
-    def isOver(self):
+    def is_over(self):
         """Returns True if the current motion is over."""
         return self.currentMotion.isOver()
     
@@ -31,11 +31,11 @@ class Current_motion_manager:
         """Sets the current motion to the given motion."""
         if self.currentMotion:
             self.currentMotion.stop()
-            self._reset_isOver_flag(self.currentMotion)
+            self._reset_is_over_flag(self.currentMotion)
         self.currentMotion = motion
         motion.play()
 
-    def _reset_isOver_flag(self, motion):
+    def _reset_is_over_flag(self, motion):
         """Resets Webots' isOver() flag of the given motion."""
         motion.play()
         motion.stop()

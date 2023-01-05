@@ -47,7 +47,7 @@ class David (Robot):
 
         while self.step(self.time_step) != -1:
             t = self.getTime()
-            if self.current_motion.isOver():
+            if self.current_motion.is_over():
                 self.current_motion.set(self.library.get('ForwardLoop'))
             self.fall_detector.check()
 
