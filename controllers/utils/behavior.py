@@ -102,7 +102,7 @@ class Gait_manager:
         self.robot = robot
         self.time_step = time_step
         self.theta = 0
-        self.robot_height_offset = 0.32
+        self.robot_height_offset = 0.27
         self.lateral_leg_offset = 0.05
         self.step_period = 0.4
         self.step_length = 0.04
@@ -134,12 +134,11 @@ class Gait_manager:
     def compute_left_leg_position(self, desired_radius):
         """Compute the desired position of the left leg from a desired radius (R > 0 is a right turn)."""
         amplitude = self.step_length * (desired_radius + self.lateral_leg_offset) / desired_radius
-        # print('Left factor', (desired_radius + self.lateral_leg_offset) / desired_radius)
         x = - amplitude * np.cos(self.theta)
         if self.theta < np.pi:
             z = - self.step_penetration * np.sin(self.theta) - self.robot_height_offset
         else:
             z = - self.step_height * np.sin(self.theta) - self.robot_height_offset
-        yaw = x/(desired_radius + self.lateral_leg_offset)
+        yaw = - x/(desired_radius + self.lateral_leg_offset)
         y = self.lateral_leg_offset - (1 - np.cos(yaw)) * (desired_radius + self.lateral_leg_offset)
         return x, y, z, yaw
