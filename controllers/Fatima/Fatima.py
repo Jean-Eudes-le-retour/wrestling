@@ -17,7 +17,6 @@ Demonstrates the gait manager (inverse kinematics + simple ellipsoid path).
 """
 
 from controller import Robot, Motion
-from enum import Enum
 import sys
 from scipy.spatial.transform import Rotation as R
 sys.path.append('..')
@@ -63,24 +62,22 @@ class Fatima (Robot):
                 self.walk()
 
     def walk(self):
-        # x_pos_normalized = self._get_normalized_opponent_x()
-        # if abs(x_pos_normalized) <= 1e-3:
-        #     desired_radius = 1e3
-        # else:
-        #     desired_radius = 0.1 / x_pos_normalized
-        desired_radius = 1
-        x_right, y_right, z_right, yaw_right = self.gait_manager.compute_right_leg_position(desired_radius)
+        x_pos_normalized = self._get_normalized_opponent_x()
+        desired_radius = 0.1 / x_pos_normalized if abs(x_pos_normalized) > 1e-3 else 1e3
+        desired_radius = 1e3
+        heading_angle = np.pi/4
+        x, y, z, yaw = self.gait_manager.compute_leg_position(is_right=True, desired_radius=desired_radius, heading_angle=heading_angle)
         right_target_commands = self.kinematics.ik_right_leg(
-            [x_right, y_right, z_right],
-            R.from_rotvec(yaw_right * np.array([0, 0, 1])).as_matrix()
+            [x, y, z],
+            R.from_rotvec(yaw * np.array([0, 0, 1])).as_matrix()
         )
         for command, motor in zip(right_target_commands[1:], self.kinematics.R_leg_motors):
             motor.setPosition(command)
 
-        x_left, y_left, z_left, yaw_left = self.gait_manager.compute_left_leg_position(desired_radius)
+        x, y, z, yaw = self.gait_manager.compute_leg_position(is_right=False, desired_radius=desired_radius, heading_angle=heading_angle)
         left_target_commands = self.kinematics.ik_left_leg(
-            [x_left, y_left, z_left],
-            R.from_rotvec(yaw_left * np.array([0, 0, 1])).as_matrix()
+            [x, y, z],
+            R.from_rotvec(yaw * np.array([0, 0, 1])).as_matrix()
         )
         for command, motor in zip(left_target_commands[1:], self.kinematics.L_leg_motors):
             motor.setPosition(command)
@@ -93,7 +90,7 @@ class Fatima (Robot):
             cv2.drawContours(output, [largest_contour], 0, (255, 255, 0), 1)
             output = cv2.circle(output, (horizontal, vertical), radius=2,
                                 color=(0, 0, 255), thickness=-1)
-        utils.image.send_image_to_robot_window(self, output)
+        # utils.image.send_image_to_robot_window(self, output)
         if horizontal is None:
             return 0
         return horizontal * 2/img.shape[1] - 1
