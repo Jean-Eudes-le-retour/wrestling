@@ -68,7 +68,7 @@ class Fatima (Robot):
         #     desired_radius = 1e3
         # else:
         #     desired_radius = 0.1 / x_pos_normalized
-        desired_radius = - 0.1
+        desired_radius = 1
         x_right, y_right, z_right, yaw_right = self.gait_manager.compute_right_leg_position(desired_radius)
         right_target_commands = self.kinematics.ik_right_leg(
             [x_right, y_right, z_right],

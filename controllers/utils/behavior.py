@@ -97,48 +97,75 @@ class Fall_detection:
         pass
 
 class Gait_manager:
-    """Simple gait generator, based on an ellipsoid path."""
+    """Simple gait generator, based on an ellipsoid path.
+    Derived from chapter 2 in paper:
+    G. Endo, J. Morimoto, T. Matsubara, J. Nakanishi, and G. Cheng,
+    “Learning CPG-based Biped Locomotion with a Policy Gradient Method: Application to a Humanoid Robot,”
+    The International Journal of Robotics Research, vol. 27, no. 2, pp. 213-228,
+    Feb. 2008, doi: 10.1177/0278364907084980.
+    """
     def __init__(self, robot, time_step):
         self.robot = robot
         self.time_step = time_step
         self.theta = 0
-        self.robot_height_offset = 0.27
+        self.imu = robot.getDevice('inertial unit')
+        self.imu.enable(self.time_step)
+        self.right_foot_sensor = robot.getDevice('RFsr')
+        self.right_foot_sensor.enable(self.time_step)
+        self.left_foot_sensor = robot.getDevice('LFsr')
+        self.left_foot_sensor.enable(self.time_step)
+        self.roll_reflex_factor = 5e-4 # h_VSR in paper
+        self.force_reflex_factor = 0.003/(5.305*9.81) # h_ER/(mass*gravity) in paper
+        self.robot_height_offset = 0.31
         self.lateral_leg_offset = 0.05
         self.step_period = 0.4
         self.step_length = 0.04
         self.step_height = 0.04
         self.step_penetration = 0.005
+        self.calibration_factor = 0.95
     
     def update_theta(self):
         """Update the angle of the ellipsoid path and clip it to [0, 2pi]."""
         self.theta = -(2 * np.pi * self.robot.getTime() / self.step_period) % (2 * np.pi)
     
     def compute_right_leg_position(self, desired_radius):
-        """Compute the desired position of the right leg from a desired radius (R > 0 is a right turn).
-        Derived from chapter 2 in paper:
-        G. Endo, J. Morimoto, T. Matsubara, J. Nakanishi, and G. Cheng,
-        “Learning CPG-based Biped Locomotion with a Policy Gradient Method: Application to a Humanoid Robot,”
-        The International Journal of Robotics Research, vol. 27, no. 2, pp. 213-228,
-        Feb. 2008, doi: 10.1177/0278364907084980.
-        """
-        amplitude = self.step_length * (desired_radius - self.lateral_leg_offset) / desired_radius
-        x = amplitude * np.cos(self.theta)
-        if self.theta < np.pi:
-            z = self.step_height * np.sin(self.theta) - self.robot_height_offset
-        else:
-            z = self.step_penetration * np.sin(self.theta) - self.robot_height_offset
+        """Compute the desired position of the right leg from a desired radius (R > 0 is a right turn)."""
+        desired_radius *= self.calibration_factor
+        amplitude_x = self.step_length * (desired_radius - self.lateral_leg_offset) / desired_radius
+        x = amplitude_x * np.cos(self.theta)
+        
+        # ellipsoid path
+        amplitude_z = self.step_height if self.theta < np.pi else self.step_penetration
+        # vestibulospinal reflex: corrects the robot's roll
+        amplitude_z += self.imu.getRollPitchYaw()[0] * self.roll_reflex_factor
+        # extensor response: pushes on the leg when it is on the ground
+        force_values = self.right_foot_sensor.getValues()
+        right_force = np.linalg.norm(np.array([force_values[0], force_values[1], force_values[2]]))
+        if right_force > 5:
+            amplitude_z += self.force_reflex_factor * right_force
+        z = amplitude_z * np.sin(self.theta) - self.robot_height_offset
+        
         yaw = - x/(desired_radius - self.lateral_leg_offset)
         y = - self.lateral_leg_offset - (1 - np.cos(yaw)) * (desired_radius - self.lateral_leg_offset)
         return x, y, z, yaw
     
     def compute_left_leg_position(self, desired_radius):
         """Compute the desired position of the left leg from a desired radius (R > 0 is a right turn)."""
+        desired_radius *= self.calibration_factor
         amplitude = self.step_length * (desired_radius + self.lateral_leg_offset) / desired_radius
         x = - amplitude * np.cos(self.theta)
-        if self.theta < np.pi:
-            z = - self.step_penetration * np.sin(self.theta) - self.robot_height_offset
-        else:
-            z = - self.step_height * np.sin(self.theta) - self.robot_height_offset
+        
+        # ellipsoid path
+        amplitude_z = self.step_penetration if self.theta < np.pi else self.step_height
+        # vestibulospinal reflex: corrects the robot's roll
+        amplitude_z -= self.imu.getRollPitchYaw()[0] * self.roll_reflex_factor
+        # extensor response: pushes on the leg when it is on the ground
+        force_values = self.left_foot_sensor.getValues()
+        left_force = np.linalg.norm(np.array([force_values[0], force_values[1], force_values[2]]))
+        if left_force > 5:
+            amplitude_z += self.force_reflex_factor * left_force
+        z = - amplitude_z * np.sin(self.theta) - self.robot_height_offset
+
         yaw = - x/(desired_radius + self.lateral_leg_offset)
         y = self.lateral_leg_offset - (1 - np.cos(yaw)) * (desired_radius + self.lateral_leg_offset)
         return x, y, z, yaw
