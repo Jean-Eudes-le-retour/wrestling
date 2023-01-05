@@ -58,11 +58,6 @@ class Eve (Robot):
         self.camera = self.getDevice("CameraTop")
         self.camera.enable(self.time_step)
 
-        # there are 7 controllable LEDs on the NAO robot, but we will use only the ones in the eyes
-        self.leds = []
-        self.leds.append(self.getDevice('Face/Led/Right'))
-        self.leds.append(self.getDevice('Face/Led/Left'))
-
         # arm motors for getting up from a side fall
         self.RShoulderRoll = self.getDevice("RShoulderRoll")
         self.LShoulderRoll = self.getDevice("LShoulderRoll")
@@ -80,9 +75,6 @@ class Eve (Robot):
         self.opponent_position = Average(dimensions=1)
 
     def run(self):
-        self.leds[0].set(0x0000ff)
-        self.leds[1].set(0x0000ff)
-
         while self.step(self.time_step) != -1:
             self.opponent_position.update_average(self._get_normalized_opponent_horizontal_position())
             self.fall_detector.check()
@@ -106,7 +98,7 @@ class Eve (Robot):
         """Returns the horizontal position of the opponent in the image, normalized to [-1, 1]
             and sends an annotated image to the robot window."""
         img = utils.image.get_cv_image_from_camera(self.camera)
-        largest_contour, vertical, horizontal = utils.image.locate_opponent(img)
+        largest_contour, vertical, horizontal = self.locate_opponent(img)
         output = img.copy()
         if largest_contour is not None:
             cv2.drawContours(output, [largest_contour], 0, (255, 255, 0), 1)
@@ -116,6 +108,28 @@ class Eve (Robot):
         if horizontal is None:
             return 0
         return horizontal * 2/img.shape[1] - 1
+    
+    def locate_opponent(img):
+        """Image processing demonstration to locate the opponent robot in an image."""
+        # we suppose the robot to be located at a concentration of multiple color changes (big Laplacian values)
+        laplacian = cv2.Laplacian(img, cv2.CV_8U, ksize=3)
+        # those spikes are then smoothed out using a Gaussian blur to get blurry blobs
+        blur = cv2.GaussianBlur(laplacian, (0, 0), 2)
+        # we apply a threshold to get a binary image of potential robot locations
+        gray = cv2.cvtColor(blur, cv2.COLOR_BGR2GRAY)
+        _, thresh = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY)
+        # the binary image is then dilated to merge small groups of blobs together
+        closing = cv2.morphologyEx(
+            thresh, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15)))
+        # the robot is assumed to be the largest contour
+        largest_contour = utils.image.get_largest_contour(closing)
+        if largest_contour is not None:
+            # we get its centroid for an approximate opponent location
+            vertical_coordinate, horizontal_coordinate = utils.image.get_contour_centroid(largest_contour)
+            return largest_contour, vertical_coordinate, horizontal_coordinate
+        else:
+            # if no contour is found, we return None
+            return None, None, None
 
 # create the Robot instance and run main loop
 wrestler = Eve()

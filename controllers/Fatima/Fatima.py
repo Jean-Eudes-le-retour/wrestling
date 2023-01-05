@@ -23,7 +23,7 @@ from utils.routines import Fall_detection
 from utils.motion import Current_motion_manager
 from utils.sensors import Accelerometer
 from utils.utils import Gait_manager
-import utils.image
+import utils.image # Eve's locate_opponent() is implemented in this module
 
 try:
     import numpy as np
@@ -61,6 +61,7 @@ class Fatima (Robot):
     def walk(self):
         """Walk towards the opponent like a homing missile."""
         x_pos_normalized = self._get_normalized_opponent_x()
+        # We set the desired radius such that the robot walks towards the opponent.
         desired_radius = 0.1 / x_pos_normalized if abs(x_pos_normalized) > 1e-3 else 1e3
         self.gait_manager.command_to_motors(desired_radius)
 
