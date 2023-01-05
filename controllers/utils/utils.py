@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 from ikpy.chain import Chain
 
 class Average():
@@ -107,7 +108,7 @@ class Kinematics():
         )
         return self.right_previous_joints
 
-class Gait_manager:
+class Ellipsoid_gait_generator():
     """Simple gait generator, based on an ellipsoid path.
     Derived from chapter 2 in paper:
     G. Endo, J. Morimoto, T. Matsubara, J. Nakanishi, and G. Cheng,
@@ -131,7 +132,7 @@ class Gait_manager:
         self.robot_height_offset = 0.31 # desired height for the robot's center of mass
         self.lateral_leg_offset = 0.05 # distance between the center of mass and the feet
         self.step_period = 0.4 # time to complete one step
-        self.step_length = 0.016 # distance traveled by the feet in one step
+        self.step_length = 0.045 # distance traveled by the feet in one step
         self.step_height = 0.04 # height of the ellipsoid path
         self.step_penetration = 0.005 # depth of the ellipsoid path
         self.calibration_factor = 0.93
@@ -165,7 +166,39 @@ class Gait_manager:
             x, y = rotate(x, y, heading_angle)
         y += - factor * self.lateral_leg_offset
         return x, y, z, yaw
+
+class Gait_manager():
+    """Connects the Kinematics class and the Ellipsoid_gait_generator class together to have a simple gait interface."""
+    def __init__(self, robot, time_step):
+        self.time_step = time_step
+        # IK is heavy, so we only compute it every 4 time steps
+        self.kinematics = Kinematics(robot, 4 * self.time_step)
+        self.gait_generator = Ellipsoid_gait_generator(robot, self.time_step)
     
+    def update_theta(self):
+        self.gait_generator.update_theta()
+    
+    def command_to_motors(self, desired_radius=1e3, heading_angle=0):
+        """
+        Compute the desired positions of the robot's legs for a desired radius (R > 0 is a right turn) and a desired heading angle (in radians).
+        Send the commands to the motors.
+        """
+        x, y, z, yaw = self.gait_generator.compute_leg_position(is_right=True, desired_radius=desired_radius, heading_angle=heading_angle)
+        right_target_commands = self.kinematics.ik_right_leg(
+            [x, y, z],
+            R.from_rotvec(yaw * np.array([0, 0, 1])).as_matrix()
+        )
+        for command, motor in zip(right_target_commands[1:], self.kinematics.R_leg_motors):
+            motor.setPosition(command)
+
+        x, y, z, yaw = self.gait_generator.compute_leg_position(is_right=False, desired_radius=desired_radius, heading_angle=heading_angle)
+        left_target_commands = self.kinematics.ik_left_leg(
+            [x, y, z],
+            R.from_rotvec(yaw * np.array([0, 0, 1])).as_matrix()
+        )
+        for command, motor in zip(left_target_commands[1:], self.kinematics.L_leg_motors):
+            motor.setPosition(command)
+
 def rotate(x, y, angle):
     """Rotate a point by a given angle."""
     return x * np.cos(angle) - y * np.sin(angle), x * np.sin(angle) + y * np.cos(angle)

@@ -72,7 +72,7 @@ class Eve (Robot):
         self.current_motion = Current_motion_manager()
         # load motion files
         self.motions = {
-            'SideStepLeft': Motion('../motions/SideStepRightLoop.motion'),
+            'SideStepLeft': Motion('../motions/SideStepLeftLoop.motion'),
             'TurnLeft':     Motion('../motions/TurnLeft20.motion'),
             'TurnRight':    Motion('../motions/TurnRight20.motion'),
         }
