@@ -163,19 +163,21 @@ def inverse_left_leg(x, y, z, roll, pitch, yaw):
         return A_6_end
     
     T = transform_from_position_and_orientation([x, y, z], [roll, pitch, yaw])
+    theta_1, theta_2, theta_3, theta_4, theta_5, theta_6 = [0, 0, 0, 0, 0, 0]
     A_base_0 = get_A_base_0()
     A_6_end = get_A_6_end()
     T_hat = np.linalg.inv(A_base_0) @ T @ np.linalg.inv(A_6_end)
     T_tilde = orientation_to_transform([np.pi/4, 0, 0]) @ T_hat
     T_prime = np.linalg.inv(T_tilde)
-    d = np.linalg.norm(T_prime[0:3, 3])
+    px_prime, py_prime, pz_prime = T_prime[0:3, 3]
+    d = np.linalg.norm([px_prime, py_prime, pz_prime])
     theta_4_double_prime = np.pi - np.arccos((ThighLength**2 + TibiaLength**2 - d**2)/(2*ThighLength*TibiaLength))
     theta_4 = []
     for theta_4_test in [theta_4_double_prime, -theta_4_double_prime]:
-        if LKneePitchLow < theta_4_test and theta_4_test < LKneePitchHigh:
+        if LKneePitchLow < theta_4_test < LKneePitchHigh:
             theta_4.append(theta_4_test)
-    theta_6 = np.arctan2(T_prime[1, 3], T_prime[2, 3])
-    T_tilde_prime = np.linalg.inv(T_tilde) @ np.linalg.inv(get_T_5_6(theta_6) @ get_Rot_zy())
+    theta_6 = np.arctan(py_prime/pz_prime)
+    T_tilde_prime = T_tilde @ np.linalg.inv(get_T_5_6(theta_6) @ get_Rot_zy())
     T_double_prime = np.linalg.inv(T_tilde_prime)
     theta_5 = []
     for theta_4_test in theta_4:
@@ -183,7 +185,8 @@ def inverse_left_leg(x, y, z, roll, pitch, yaw):
         denominator = ThighLength**2 * np.sin(theta_4_test)**2 + (TibiaLength + ThighLength * np.cos(theta_4_test))**2
         theta_5_prime = np.arcsin(numerator / denominator)
         for theta_5_test in [theta_5_prime, np.pi - theta_5_prime]:
-            if LAnklePitchLow < theta_5_test and theta_5_test < LAnklePitchHigh:
+            print('theta_5_test', theta_5_test)
+            if LAnklePitchLow < theta_5_test < LAnklePitchHigh:
                 theta_5.append(theta_5_test)
     for theta_5_test in theta_5:
         for theta_4_test in theta_4:
@@ -193,6 +196,22 @@ def inverse_left_leg(x, y, z, roll, pitch, yaw):
             theta_2 = []
             theta_2_prime = np.arccos(T_triple_prime[1, 2])
             for theta_2_test in [theta_2_prime - np.pi/4, -theta_2_prime - np.pi/4]:
-                if LHipRollLow < theta_2_test and theta_2_test < LHipRollHigh:
+                if LHipRollLow < theta_2_test < LHipRollHigh:
                     theta_2.append(theta_2_test)
-    return 0, 0, theta_2, 0, theta_4, theta_5, theta_6, 0
+                else:
+                    continue
+                theta_3_prime = np.arcsin(T_triple_prime[1, 1] / np.sin(theta_2_test + np.pi/4))
+                theta_3 = [-0.586261523] # theta_3 not correct
+                for theta_3_test in [theta_3_prime, np.pi - theta_3_prime]:
+                    print('theta_3_test', theta_3_test)
+                    if LHipPitchLow < theta_3_test < LHipPitchHigh:
+                        theta_3.append(theta_3_test)
+                if len(theta_3) == 0:
+                    continue
+                theta_1_prime = np.arccos(T_triple_prime[0, 2] / np.sin(theta_2_test + np.pi/4))
+                theta_1 = []
+                for theta_1_test in [theta_1_prime + np.pi/2, -theta_1_prime + np.pi/2]:
+                    print
+                    if LHipYawPitchLow < theta_1_test < LHipYawPitchHigh:
+                        theta_1.append(theta_1_test)
+    return np.array([0, theta_1, theta_2, theta_3, theta_4, theta_5, theta_6, 0], dtype=object)
