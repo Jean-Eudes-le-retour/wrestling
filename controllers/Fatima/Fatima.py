@@ -52,11 +52,14 @@ class Fatima (Robot):
         self.current_motion.set(Motion('../motions/Stand.motion'))
 
     def run(self):
+        i = 0
         while self.step(self.time_step) != -1:
             if self.current_motion.is_over():
                 self.fall_detector.check()
                 self.gait_manager.update_theta()
-                self.walk()
+                if i % 10 == 0:
+                    # Inverse kinematics is computationally expensive, so we only update the commands every 4 steps.
+                    self.walk()
 
     def walk(self):
         """Walk towards the opponent like a homing missile."""
@@ -74,7 +77,7 @@ class Fatima (Robot):
             cv2.drawContours(output, [largest_contour], 0, (255, 255, 0), 1)
             output = cv2.circle(output, (horizontal, vertical), radius=2,
                                 color=(0, 0, 255), thickness=-1)
-        utils.image.send_image_to_robot_window(self, output)
+        # utils.image.send_image_to_robot_window(self, output)
         if horizontal is None:
             return 0
         return horizontal * 2/img.shape[1] - 1

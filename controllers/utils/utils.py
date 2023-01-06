@@ -46,13 +46,8 @@ class Average():
 
 class Kinematics():
     """Class that takes care of the computation of the inverse kinematics."""
-
     IKPY_MAX_ITERATIONS = 4
-
-    def __init__(self, robot, time_step):
-        self.robot = robot
-        self.time_step = time_step
-
+    def __init__(self):
         self.left_leg_chain = Chain.from_urdf_file(
             '../../protos/nao.urdf',
             base_elements=['base_link', 'LHipYawPitch'],
@@ -66,22 +61,6 @@ class Kinematics():
             active_links_mask=[False, True, True,
                                True, True, True, True, False]
         )
-
-        self.L_leg_motors = []
-        for link in self.left_leg_chain.links:
-            if link.name != 'Base link' and link.name != "LLeg_effector_fixedjoint":
-                motor = robot.getDevice(link.name)
-                position_sensor = motor.getPositionSensor()
-                position_sensor.enable(time_step)
-                self.L_leg_motors.append(motor)
-        
-        self.R_leg_motors = []
-        for link in self.right_leg_chain.links:
-            if link.name != 'Base link' and link.name != "RLeg_effector_fixedjoint":
-                motor = robot.getDevice(link.name)
-                position_sensor = motor.getPositionSensor()
-                position_sensor.enable(time_step)
-                self.R_leg_motors.append(motor)
 
         self.left_previous_joints = [0, 0, 0, -0.524, 1.047, -0.524, 0, 0]
         self.right_previous_joints = [0, 0, 0, -0.524, 1.047, -0.524, 0, 0]
@@ -171,9 +150,23 @@ class Gait_manager():
     """Connects the Kinematics class and the Ellipsoid_gait_generator class together to have a simple gait interface."""
     def __init__(self, robot, time_step):
         self.time_step = time_step
-        # IK is heavy, so we only compute it every 4 time steps
-        self.kinematics = Kinematics(robot, 4 * self.time_step)
+        self.kinematics = Kinematics()
         self.gait_generator = Ellipsoid_gait_generator(robot, self.time_step)
+        self.L_leg_motors = []
+        for link in self.kinematics.left_leg_chain.links:
+            if link.name != 'Base link' and link.name != "LLeg_effector_fixedjoint":
+                motor = robot.getDevice(link.name)
+                position_sensor = motor.getPositionSensor()
+                position_sensor.enable(time_step)
+                self.L_leg_motors.append(motor)
+        
+        self.R_leg_motors = []
+        for link in self.kinematics.right_leg_chain.links:
+            if link.name != 'Base link' and link.name != "RLeg_effector_fixedjoint":
+                motor = robot.getDevice(link.name)
+                position_sensor = motor.getPositionSensor()
+                position_sensor.enable(time_step)
+                self.R_leg_motors.append(motor)
     
     def update_theta(self):
         self.gait_generator.update_theta()
@@ -188,7 +181,7 @@ class Gait_manager():
             [x, y, z],
             R.from_rotvec(yaw * np.array([0, 0, 1])).as_matrix()
         )
-        for command, motor in zip(right_target_commands[1:], self.kinematics.R_leg_motors):
+        for command, motor in zip(right_target_commands[1:], self.R_leg_motors):
             motor.setPosition(command)
 
         x, y, z, yaw = self.gait_generator.compute_leg_position(is_right=False, desired_radius=desired_radius, heading_angle=heading_angle)
@@ -196,7 +189,7 @@ class Gait_manager():
             [x, y, z],
             R.from_rotvec(yaw * np.array([0, 0, 1])).as_matrix()
         )
-        for command, motor in zip(left_target_commands[1:], self.kinematics.L_leg_motors):
+        for command, motor in zip(left_target_commands[1:], self.L_leg_motors):
             motor.setPosition(command)
 
 def rotate(x, y, angle):
