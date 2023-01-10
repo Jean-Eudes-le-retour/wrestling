@@ -57,6 +57,9 @@ RAnklePitchLow		= -1.1864
 RAnkleRollHigh		= 0.3886
 RAnkleRollLow		= -1.1864
 
+left_leg_previous_joints = [0, 0, -0.524, 1.047, -0.524, 0]
+right_leg_previous_joints = [0, 0, -0.524, 1.047, -0.524, 0]
+
 def DH(a, alpha, d, theta):
     return np.array([
         [np.cos(theta), -np.sin(theta), 0, a],
@@ -134,6 +137,8 @@ class Tree:
         self.children.append(child)
 
 def inverse_leg(x, y, z, roll, pitch, yaw, is_left):
+    global left_leg_previous_joints
+    global right_leg_previous_joints
     def get_A_base_0():
         A_base_0 = np.eye(4)
         A_base_0[1, 3] = HipOffsetY if is_left else -HipOffsetY
@@ -175,7 +180,8 @@ def inverse_leg(x, y, z, roll, pitch, yaw, is_left):
     A_base_0 = get_A_base_0()
     A_6_end = get_A_6_end()
     T_hat = np.linalg.inv(A_base_0) @ T @ np.linalg.inv(A_6_end)
-    T_tilde = orientation_to_transform([0, 0, np.pi/4 if is_left else -np.pi/4]) @ T_hat
+    plus_or_minus_pi_over_4 = np.pi/4 if is_left else -np.pi/4
+    T_tilde = orientation_to_transform([0, 0, plus_or_minus_pi_over_4]) @ T_hat
     T_prime = np.linalg.inv(T_tilde)
     px_prime, py_prime, pz_prime = T_prime[0:3, 3]
     theta_6 = np.arctan(py_prime/pz_prime)
@@ -203,19 +209,19 @@ def inverse_leg(x, y, z, roll, pitch, yaw, is_left):
             T_4_5 = get_T_4_5(theta_5_test)
             T_triple_prime = T_tilde_prime @ np.linalg.inv(T_3_4 @ T_4_5)
             theta_2_prime = np.arccos(T_triple_prime[1, 2])
-            for theta_2_test in [theta_2_prime - np.pi/4, -theta_2_prime - np.pi/4]:
+            for theta_2_test in [theta_2_prime - plus_or_minus_pi_over_4, - theta_2_prime - plus_or_minus_pi_over_4]:
                 if LHipRollLow < theta_2_test < LHipRollHigh:
                     theta_2_node = Tree(theta_2_test)
                 else:
                     continue
-                theta_3_prime = np.arcsin(T_triple_prime[1, 1] / np.sin(theta_2_test + (np.pi/4 if is_left else -np.pi/4)))
+                theta_3_prime = np.arcsin(T_triple_prime[1, 1] / np.sin(theta_2_test + plus_or_minus_pi_over_4))
                 theta_3 = []
                 for theta_3_test in [theta_3_prime, (np.pi if theta_3_prime >= 0 else - np.pi) - theta_3_prime]:
                     if LHipPitchLow < theta_3_test < LHipPitchHigh:
                         theta_3.append(theta_3_test)
                 if len(theta_3) == 0:
                     continue
-                theta_1_prime = np.arccos(T_triple_prime[0, 2] / np.sin(theta_2_test + (np.pi/4 if is_left else -np.pi/4)))
+                theta_1_prime = np.arccos(T_triple_prime[0, 2] / np.sin(theta_2_test + plus_or_minus_pi_over_4))
                 theta_1 = []
                 for theta_1_test in [theta_1_prime + np.pi/2, -theta_1_prime + np.pi/2]:
                     if LHipYawPitchLow < theta_1_test < LHipYawPitchHigh:
@@ -229,6 +235,16 @@ def inverse_leg(x, y, z, roll, pitch, yaw, is_left):
                 theta_5_node.add_child(theta_2_node)
     combinations = get_angle_combinations(solution_tree)
     # TODO: Find the combination that is closest to the current angles
+    if len(combinations) == 0:
+        return None
+    elif len(combinations[0]) != 6:
+        print(combinations)
+        return left_leg_previous_joints if is_left else right_leg_previous_joints
+    if is_left:
+        left_leg_previous_joints = combinations[0]
+    else:
+        right_leg_previous_joints = combinations[0]
+
     theta_6, theta_4, theta_5, theta_2, theta_3, theta_1 = combinations[0]
 
     return theta_1, theta_2, theta_3, theta_4, theta_5, theta_6

@@ -15,6 +15,7 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 from .kinematics import Kinematics
+from . import ik
 
 class Ellipsoid_gait_generator():
     """Simple gait generator, based on an ellipsoid path.
@@ -106,19 +107,13 @@ class Gait_manager():
         Send the commands to the motors.
         """
         x, y, z, yaw = self.gait_generator.compute_leg_position(is_right=True, desired_radius=desired_radius, heading_angle=heading_angle)
-        right_target_commands = self.kinematics.ik_right_leg(
-            [x, y, z],
-            R.from_rotvec(yaw * np.array([0, 0, 1])).as_matrix()
-        )
-        for command, motor in zip(right_target_commands[1:], self.R_leg_motors):
+        right_target_commands = ik.inverse_leg(x*1e3, y*1e3, z*1e3, 0, 0, yaw, is_left=False)
+        for command, motor in zip(right_target_commands, self.R_leg_motors):
             motor.setPosition(command)
 
         x, y, z, yaw = self.gait_generator.compute_leg_position(is_right=False, desired_radius=desired_radius, heading_angle=heading_angle)
-        left_target_commands = self.kinematics.ik_left_leg(
-            [x, y, z],
-            R.from_rotvec(yaw * np.array([0, 0, 1])).as_matrix()
-        )
-        for command, motor in zip(left_target_commands[1:], self.L_leg_motors):
+        left_target_commands = ik.inverse_leg(x*1e3, y*1e3, z*1e3, 0, 0, yaw, is_left=True)
+        for command, motor in zip(left_target_commands, self.L_leg_motors):
             motor.setPosition(command)
 
 def rotate(x, y, angle):

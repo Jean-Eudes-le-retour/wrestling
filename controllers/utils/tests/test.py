@@ -21,28 +21,31 @@ from kinematics import Kinematics
 ik.np.set_printoptions(suppress=True)
 PI_4 = ik.np.pi/4
 PI = ik.np.pi
-"""# from [0, 50, -300]:
-_, left = ik.fLeftLeg([0., 0., -0.58785418, 1.15704096, -0.56918678, 0.0])
-print(left)
 
-import old_ik
-old_ik.np.set_printoptions(suppress=True)
-# [0., 50., -209.77999986, 3.14159265, 0., -3.14159265]
-result = old_ik.inverse_left_leg(old_ik.makeTransformation(left[0], left[1], left[2], left[3], left[4], left[5]))
-print(result)"""
 
 import time
 
+# about x100 faster
 start_time = time.time()
-print(ik.inverse_left_leg(0, 50, -300, 0, 0, 0))
+print(ik.inverse_leg(0, 50, -300, 0, 0, 0, is_left=True))
 print("--- %s seconds ---" % (time.time() - start_time))
-print(ik.forward_left_leg([0., 0., -0.58785418, 1.15704096, -0.56918678, 0.]))
+print(ik.forward_left_leg([0., 0., -0.5878541756344366, 1.1570409574741018, -0.5691867818396654, 0.]))
 print('------------------')
 
 start_time = time.time()
 ik_class = Kinematics()
 print(ik_class.ik_left_leg([0, 0.05, -0.3]))
 print("--- %s seconds ---" % (time.time() - start_time))
+print('------------------')
+print('------------------')
+start_time = time.time()
+print(ik.inverse_leg(0, -50, -300, 0, 0, 0, is_left=False))
+print("--- %s seconds ---" % (time.time() - start_time))
+print(ik.forward_right_leg([0., 0., -0.5878541756344366, 1.1570409574741018, -0.5691867818396654, 0.]))
+print('------------------')
 
-# print(R.from_euler('ZYX', [np.pi, -np.pi/2, 0]).as_matrix())
-# print(R.from_euler('XYZ', [0, -np.pi/2, np.pi]).as_matrix())
+start_time = time.time()
+ik_class = Kinematics()
+print(ik_class.ik_right_leg([0, -0.05, -0.3]))
+print("--- %s seconds ---" % (time.time() - start_time))
+
