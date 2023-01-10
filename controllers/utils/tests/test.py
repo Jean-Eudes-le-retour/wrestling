@@ -15,8 +15,9 @@
 import sys
 from scipy.spatial.transform import Rotation as R
 import ik
+import numpy as np
 sys.path.append('..')
-from utils import Kinematics
+from kinematics import Kinematics
 ik.np.set_printoptions(suppress=True)
 PI_4 = ik.np.pi/4
 PI = ik.np.pi
@@ -33,12 +34,15 @@ print(result)"""
 import time
 
 start_time = time.time()
-print(ik.inverse_left_leg(0, 50, -209.77999986, PI, 0, -PI))
+print(ik.inverse_left_leg(0, 50, -300, 0, 0, 0))
 print("--- %s seconds ---" % (time.time() - start_time))
-
 print(ik.forward_left_leg([0., 0., -0.58785418, 1.15704096, -0.56918678, 0.]))
+print('------------------')
 
 start_time = time.time()
 ik_class = Kinematics()
 print(ik_class.ik_left_leg([0, 0.05, -0.3]))
 print("--- %s seconds ---" % (time.time() - start_time))
+
+# print(R.from_euler('ZYX', [np.pi, -np.pi/2, 0]).as_matrix())
+# print(R.from_euler('XYZ', [0, -np.pi/2, np.pi]).as_matrix())

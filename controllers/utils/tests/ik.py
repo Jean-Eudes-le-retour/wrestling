@@ -73,7 +73,7 @@ def DH(a, alpha, d, theta):
 
 def orientation_to_transform(orientation):
     T = np.eye(4)
-    T[:3, :3] = R.from_euler('xyz', orientation).as_matrix()
+    T[:3, :3] = R.from_euler('ZYX', orientation).as_matrix()
     return T
 
 def orientation_from_transform(T):
@@ -92,7 +92,7 @@ def left_leg_transform_matrixes(thetas):
     T_3_4 = DH(-ThighLength, 0, 0, thetas[3])
     T_4_5 = DH(-TibiaLength, 0, 0, thetas[4])
     T_5_6 = DH(0, -np.pi/2, 0, thetas[5])
-    Rot_zy = orientation_to_transform([0, -np.pi/2, np.pi])
+    Rot_zy = orientation_to_transform([np.pi, -np.pi/2, 0])
     A_6_end = np.eye(4)
     A_6_end[2, 3] = -FootHeight
     return A_base_0, T_0_1, T_1_2, T_2_3, T_3_4, T_4_5, T_5_6, Rot_zy, A_6_end
@@ -107,7 +107,7 @@ def right_leg_transform_matrixes(thetas):
     T_3_4 = DH(-ThighLength, 0, 0, thetas[3])
     T_4_5 = DH(-TibiaLength, 0, 0, thetas[4])
     T_5_6 = DH(0, -np.pi/2, 0, thetas[5])
-    Rot_zy = orientation_to_transform([0, -np.pi/2, np.pi])
+    Rot_zy = orientation_to_transform([np.pi, -np.pi/2, 0])
     A_6_end = np.eye(4)
     A_6_end[2, 3] = -FootHeight
     return A_base_0, T_0_1, T_1_2, T_2_3, T_3_4, T_4_5, T_5_6, Rot_zy, A_6_end
@@ -129,18 +129,6 @@ def inverse_left_leg(x, y, z, roll, pitch, yaw):
         A_base_0[2, 3] = -HipOffsetZ
         return A_base_0
     
-    def get_T_0_1(theta_1):
-        T_0_1 = DH(0, -3*np.pi/4, 0, theta_1-np.pi/2)
-        return T_0_1
-    
-    def get_T_1_2(theta_2):
-        T_1_2 = DH(0, -np.pi/2, 0, theta_2+np.pi/4)
-        return T_1_2
-    
-    def get_T_2_3(theta_3):
-        T_2_3 = DH(0, np.pi/2, 0, theta_3)
-        return T_2_3
-    
     def get_T_3_4(theta_4):
         T_3_4 = DH(-ThighLength, 0, 0, theta_4)
         return T_3_4
@@ -154,7 +142,7 @@ def inverse_left_leg(x, y, z, roll, pitch, yaw):
         return T_5_6
     
     def get_Rot_zy():
-        Rot_zy = orientation_to_transform([0, -np.pi/2, np.pi])
+        Rot_zy = orientation_to_transform([np.pi, -np.pi/2, 0])
         return Rot_zy
     
     def get_A_6_end():
@@ -162,12 +150,12 @@ def inverse_left_leg(x, y, z, roll, pitch, yaw):
         A_6_end[2, 3] = -FootHeight
         return A_6_end
     
-    T = transform_from_position_and_orientation([x, y, z], [roll, pitch, yaw])
+    T = transform_from_position_and_orientation([x, y, z], [yaw, pitch, roll])
     theta_1, theta_2, theta_3, theta_4, theta_5, theta_6 = [0, 0, 0, 0, 0, 0]
     A_base_0 = get_A_base_0()
     A_6_end = get_A_6_end()
     T_hat = np.linalg.inv(A_base_0) @ T @ np.linalg.inv(A_6_end)
-    T_tilde = orientation_to_transform([np.pi/4, 0, 0]) @ T_hat
+    T_tilde = orientation_to_transform([0, 0, np.pi/4]) @ T_hat
     T_prime = np.linalg.inv(T_tilde)
     px_prime, py_prime, pz_prime = T_prime[0:3, 3]
     d = np.linalg.norm([px_prime, py_prime, pz_prime])
@@ -181,10 +169,10 @@ def inverse_left_leg(x, y, z, roll, pitch, yaw):
     T_double_prime = np.linalg.inv(T_tilde_prime)
     theta_5 = []
     for theta_4_test in theta_4:
-        numerator = - T_double_prime[1, 3] * (TibiaLength + ThighLength * np.cos(theta_4_test)) + ThighLength * T_double_prime[0, 3] * np.sin(theta_4_test)
+        numerator = T_double_prime[1, 3] * (TibiaLength + ThighLength * np.cos(theta_4_test)) + ThighLength * T_double_prime[0, 3] * np.sin(theta_4_test)
         denominator = ThighLength**2 * np.sin(theta_4_test)**2 + (TibiaLength + ThighLength * np.cos(theta_4_test))**2
-        theta_5_prime = np.arcsin(numerator / denominator)
-        for theta_5_test in [theta_5_prime, np.pi - theta_5_prime]:
+        theta_5_prime = np.arcsin(- numerator / denominator)
+        for theta_5_test in [theta_5_prime, (np.pi if theta_5_prime >= 0 else - np.pi) - theta_5_prime]:
             print('theta_5_test', theta_5_test)
             if LAnklePitchLow < theta_5_test < LAnklePitchHigh:
                 theta_5.append(theta_5_test)
@@ -201,8 +189,9 @@ def inverse_left_leg(x, y, z, roll, pitch, yaw):
                 else:
                     continue
                 theta_3_prime = np.arcsin(T_triple_prime[1, 1] / np.sin(theta_2_test + np.pi/4))
-                theta_3 = [-0.586261523] # theta_3 not correct
-                for theta_3_test in [theta_3_prime, np.pi - theta_3_prime]:
+                print('T_triple_prime[1, 1]', T_triple_prime[1, 1])
+                theta_3 = []
+                for theta_3_test in [theta_3_prime, (np.pi if theta_3_prime >= 0 else - np.pi) - theta_3_prime]:
                     print('theta_3_test', theta_3_test)
                     if LHipPitchLow < theta_3_test < LHipPitchHigh:
                         theta_3.append(theta_3_test)
