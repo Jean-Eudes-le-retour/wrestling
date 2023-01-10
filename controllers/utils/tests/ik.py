@@ -57,12 +57,6 @@ RAnklePitchLow		= -1.1864
 RAnkleRollHigh		= 0.3886
 RAnkleRollLow		= -1.1864
 
-# validation test:
-# x,y,z = [0, 0.05, -0.3]
-# seems like the z position of the origin is not the same in both code
-# Rot = np.eye(3)
-# thetas = [0., 0., 0., -0.58785418, 1.15704096, -0.56918678, 0., 0.]
-
 def DH(a, alpha, d, theta):
     return np.array([
         [np.cos(theta), -np.sin(theta), 0, a],
@@ -81,6 +75,11 @@ def orientation_from_transform(T):
     pitch = np.arctan2(-T[2, 0], np.sqrt(T[2, 1]**2 + T[2, 2]**2))
     yaw = np.arctan2(T[1, 0], T[0, 0])
     return np.array([roll, pitch, yaw])
+
+def transform_from_position_and_orientation(position, orientation):
+    T = orientation_to_transform(orientation)
+    T[0:3, 3] = position
+    return T
 
 def left_leg_transform_matrixes(thetas):
     A_base_0 = np.eye(4)
@@ -117,15 +116,27 @@ def forward_left_leg(thetas):
     T_base_end = A_base_0 @ T_0_1 @ T_1_2 @ T_2_3 @ T_3_4 @ T_4_5 @ T_5_6 @ Rot_zy @ A_6_end
     return np.concatenate((T_base_end[0:3, 3], orientation_from_transform(T_base_end)))
 
-def transform_from_position_and_orientation(position, orientation):
-    T = orientation_to_transform(orientation)
-    T[0:3, 3] = position
-    return T
+def forward_right_leg(thetas):
+    A_base_0, T_0_1, T_1_2, T_2_3, T_3_4, T_4_5, T_5_6, Rot_zy, A_6_end = right_leg_transform_matrixes(thetas)
+    T_base_end = A_base_0 @ T_0_1 @ T_1_2 @ T_2_3 @ T_3_4 @ T_4_5 @ T_5_6 @ Rot_zy @ A_6_end
+    return np.concatenate((T_base_end[0:3, 3], orientation_from_transform(T_base_end)))
 
-def inverse_left_leg(x, y, z, roll, pitch, yaw):
+class Tree:
+    """A tree data structure for storing all the possible inverse kinematics solutions."""
+    def __init__(self, angle):
+        self.angle = angle
+        self.children = []
+    
+    def add_child_node(self, angle):
+        self.children.append(Tree(angle))
+
+    def add_child(self, child):
+        self.children.append(child)
+
+def inverse_leg(x, y, z, roll, pitch, yaw, is_left):
     def get_A_base_0():
         A_base_0 = np.eye(4)
-        A_base_0[1, 3] = HipOffsetY
+        A_base_0[1, 3] = HipOffsetY if is_left else -HipOffsetY
         A_base_0[2, 3] = -HipOffsetZ
         return A_base_0
     
@@ -150,57 +161,74 @@ def inverse_left_leg(x, y, z, roll, pitch, yaw):
         A_6_end[2, 3] = -FootHeight
         return A_6_end
     
+    def get_angle_combinations(node):
+        if not node.children:
+            return [[node.angle]]
+        combinations = []
+        for child in node.children:
+            child_combinations = get_angle_combinations(child)
+            for combination in child_combinations:
+                combinations.append([node.angle] + combination)
+        return combinations
+
     T = transform_from_position_and_orientation([x, y, z], [yaw, pitch, roll])
-    theta_1, theta_2, theta_3, theta_4, theta_5, theta_6 = [0, 0, 0, 0, 0, 0]
     A_base_0 = get_A_base_0()
     A_6_end = get_A_6_end()
     T_hat = np.linalg.inv(A_base_0) @ T @ np.linalg.inv(A_6_end)
-    T_tilde = orientation_to_transform([0, 0, np.pi/4]) @ T_hat
+    T_tilde = orientation_to_transform([0, 0, np.pi/4 if is_left else -np.pi/4]) @ T_hat
     T_prime = np.linalg.inv(T_tilde)
     px_prime, py_prime, pz_prime = T_prime[0:3, 3]
+    theta_6 = np.arctan(py_prime/pz_prime)
+    solution_tree = Tree(theta_6)
     d = np.linalg.norm([px_prime, py_prime, pz_prime])
     theta_4_double_prime = np.pi - np.arccos((ThighLength**2 + TibiaLength**2 - d**2)/(2*ThighLength*TibiaLength))
-    theta_4 = []
     for theta_4_test in [theta_4_double_prime, -theta_4_double_prime]:
         if LKneePitchLow < theta_4_test < LKneePitchHigh:
-            theta_4.append(theta_4_test)
-    theta_6 = np.arctan(py_prime/pz_prime)
+            solution_tree.add_child_node(theta_4_test)
     T_tilde_prime = T_tilde @ np.linalg.inv(get_T_5_6(theta_6) @ get_Rot_zy())
     T_double_prime = np.linalg.inv(T_tilde_prime)
-    theta_5 = []
-    for theta_4_test in theta_4:
+    for theta_4_node in solution_tree.children:
+        theta_4_test = theta_4_node.angle
         numerator = T_double_prime[1, 3] * (TibiaLength + ThighLength * np.cos(theta_4_test)) + ThighLength * T_double_prime[0, 3] * np.sin(theta_4_test)
         denominator = ThighLength**2 * np.sin(theta_4_test)**2 + (TibiaLength + ThighLength * np.cos(theta_4_test))**2
         theta_5_prime = np.arcsin(- numerator / denominator)
         for theta_5_test in [theta_5_prime, (np.pi if theta_5_prime >= 0 else - np.pi) - theta_5_prime]:
-            print('theta_5_test', theta_5_test)
             if LAnklePitchLow < theta_5_test < LAnklePitchHigh:
-                theta_5.append(theta_5_test)
-    for theta_5_test in theta_5:
-        for theta_4_test in theta_4:
+                theta_4_node.add_child_node(theta_5_test)
+    for theta_4_node in solution_tree.children:
+        for theta_5_node in theta_4_node.children:
+            theta_4_test = theta_4_node.angle
+            theta_5_test = theta_5_node.angle
             T_3_4 = get_T_3_4(theta_4_test)
             T_4_5 = get_T_4_5(theta_5_test)
             T_triple_prime = T_tilde_prime @ np.linalg.inv(T_3_4 @ T_4_5)
-            theta_2 = []
             theta_2_prime = np.arccos(T_triple_prime[1, 2])
             for theta_2_test in [theta_2_prime - np.pi/4, -theta_2_prime - np.pi/4]:
                 if LHipRollLow < theta_2_test < LHipRollHigh:
-                    theta_2.append(theta_2_test)
+                    theta_2_node = Tree(theta_2_test)
                 else:
                     continue
-                theta_3_prime = np.arcsin(T_triple_prime[1, 1] / np.sin(theta_2_test + np.pi/4))
-                print('T_triple_prime[1, 1]', T_triple_prime[1, 1])
+                theta_3_prime = np.arcsin(T_triple_prime[1, 1] / np.sin(theta_2_test + (np.pi/4 if is_left else -np.pi/4)))
                 theta_3 = []
                 for theta_3_test in [theta_3_prime, (np.pi if theta_3_prime >= 0 else - np.pi) - theta_3_prime]:
-                    print('theta_3_test', theta_3_test)
                     if LHipPitchLow < theta_3_test < LHipPitchHigh:
                         theta_3.append(theta_3_test)
                 if len(theta_3) == 0:
                     continue
-                theta_1_prime = np.arccos(T_triple_prime[0, 2] / np.sin(theta_2_test + np.pi/4))
+                theta_1_prime = np.arccos(T_triple_prime[0, 2] / np.sin(theta_2_test + (np.pi/4 if is_left else -np.pi/4)))
                 theta_1 = []
                 for theta_1_test in [theta_1_prime + np.pi/2, -theta_1_prime + np.pi/2]:
-                    print
                     if LHipYawPitchLow < theta_1_test < LHipYawPitchHigh:
                         theta_1.append(theta_1_test)
-    return np.array([0, theta_1, theta_2, theta_3, theta_4, theta_5, theta_6, 0], dtype=object)
+                for theta_3_angle in theta_3:
+                    theta_3_node = Tree(theta_3_angle)
+                    for theta_1_angle in theta_1:
+                        theta_3_node.add_child_node(theta_1_angle)
+                    theta_2_node.add_child(theta_3_node)
+                # We only add the theta_2_node if it has a valid theta_3 and theta_1
+                theta_5_node.add_child(theta_2_node)
+    combinations = get_angle_combinations(solution_tree)
+    print(combinations)
+    theta_6, theta_4, theta_5, theta_2, theta_3, theta_1 = combinations[0]
+
+    return theta_1, theta_2, theta_3, theta_4, theta_5, theta_6
