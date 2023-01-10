@@ -1,4 +1,4 @@
-# Copyright 1996-2022 Cyberbotics Ltd.
+# Copyright 1996-2023 Cyberbotics Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 Controller example for the Robot Wrestling Tournament.
 Demonstrates how to use a sensor, here an accelerometer to detect a fall.
 Depending on the fall direction, the robot will play a different motion, which is implemented by a simple Finite State Machine.
-beats Charlie by getting up after being knocked down.
+Beats Charlie by getting up after being knocked down.
 """
 
 import sys

@@ -1,4 +1,4 @@
-# Copyright 1996-2022 Cyberbotics Ltd.
+# Copyright 1996-2023 Cyberbotics Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,28 +17,20 @@ Demonstrates the gait manager (inverse kinematics + simple ellipsoid path).
 """
 
 from controller import Robot, Motion
+
 import sys
 sys.path.append('..')
-from utils.routines import Fall_detection
-from utils.motion import Current_motion_manager
 from utils.sensors import Accelerometer
-from utils.utils import Gait_manager
-import utils.image # Eve's locate_opponent() is implemented in this module
-
-try:
-    import numpy as np
-    np.set_printoptions(suppress=True)
-except ImportError:
-    sys.exit("Warning: 'numpy' module not found. Please check the Python modules installation instructions " +
-             "at 'https://www.cyberbotics.com/doc/guide/using-python'.")
-try:
-    import cv2
-except ImportError:
-    sys.exit("Warning: 'cv2' module not found. Please check the Python modules installation instructions " +
-             "at 'https://www.cyberbotics.com/doc/guide/using-python'.")
+from utils.motion import Current_motion_manager
+from utils.routines import Fall_detection
+from utils.gait import Gait_manager
+# Eve's locate_opponent() is implemented in this module:
+import utils.image
 
 
 class Fatima (Robot):
+    SMALLEST_TURNING_RADIUS = 0.1
+
     def __init__(self):
         Robot.__init__(self)
         self.time_step = int(self.getBasicTimeStep())
@@ -52,35 +44,31 @@ class Fatima (Robot):
         self.current_motion.set(Motion('../motions/Stand.motion'))
 
     def run(self):
-        i = 0
         while self.step(self.time_step) != -1:
             if self.current_motion.is_over():
                 self.fall_detector.check()
                 self.gait_manager.update_theta()
-                if i % 10 == 0:
-                    # Inverse kinematics is computationally expensive, so we only update the commands every 4 steps.
-                    self.walk()
+                self.walk()
 
     def walk(self):
         """Walk towards the opponent like a homing missile."""
         x_pos_normalized = self._get_normalized_opponent_x()
         # We set the desired radius such that the robot walks towards the opponent.
-        desired_radius = 0.1 / x_pos_normalized if abs(x_pos_normalized) > 1e-3 else 1e3
-        self.gait_manager.command_to_motors(desired_radius)
+        # If the opponent is close to the middle, the robot walks straight (turning radius very high).
+        if abs(x_pos_normalized) > 1e-3:
+            desired_radius = self.SMALLEST_TURNING_RADIUS / x_pos_normalized
+        else:
+            desired_radius = 1e3
+        self.gait_manager.command_to_motors(desired_radius=desired_radius)
 
     def _get_normalized_opponent_x(self):
         """Locate the opponent in the image and return its horizontal position in the range [-1, 1]."""
         img = utils.image.get_cv_image_from_camera(self.camera)
-        largest_contour, vertical, horizontal = utils.image.locate_opponent(img)
-        output = img.copy()
-        if largest_contour is not None:
-            cv2.drawContours(output, [largest_contour], 0, (255, 255, 0), 1)
-            output = cv2.circle(output, (horizontal, vertical), radius=2,
-                                color=(0, 0, 255), thickness=-1)
-        # utils.image.send_image_to_robot_window(self, output)
-        if horizontal is None:
+        _, _, horizontal_coordinate = utils.image.locate_opponent(img)
+        if horizontal_coordinate is None:
             return 0
-        return horizontal * 2/img.shape[1] - 1
+        return horizontal_coordinate * 2/img.shape[1] - 1
+
 
 # create the Robot instance and run main loop
 wrestler = Fatima()

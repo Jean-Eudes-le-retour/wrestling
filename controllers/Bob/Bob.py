@@ -1,4 +1,4 @@
-# Copyright 1996-2022 Cyberbotics Ltd.
+# Copyright 1996-2023 Cyberbotics Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -36,8 +36,8 @@ class Bob (Robot):
         self.library.play('Forwards50')
         
         # to control a motor, we use the setPosition() function:
-        self.RShoulderPitch.setPosition(1.57)  # arms in front, zombie mode
-        self.LShoulderPitch.setPosition(1.57)
+        self.RShoulderPitch.setPosition(1.3)
+        self.LShoulderPitch.setPosition(1.3)
         # for more motor control functions, see the documentation: https://cyberbotics.com/doc/reference/motor
         # to see the list of available devices, see the NAO documentation: https://cyberbotics.com/doc/guide/nao
 

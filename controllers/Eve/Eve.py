@@ -20,17 +20,11 @@ from controller import Robot, Motion
 import sys
 sys.path.append('..')
 from utils.routines import Fall_detection # David's fall detection is implemented in this class
-import utils.image
 from utils.fsm import Finite_state_machine
 from utils.motion import Current_motion_manager
 from utils.utils import Average
+import utils.image
 
-try:
-    import numpy as np
-    np.set_printoptions(suppress=True)
-except ImportError:
-    sys.exit("Warning: 'numpy' module not found. Please check the Python modules installation instructions " +
-             "at 'https://www.cyberbotics.com/doc/guide/using-python'.")
 try:
     import cv2
 except ImportError:
@@ -57,6 +51,9 @@ class Eve (Robot):
         # camera
         self.camera = self.getDevice("CameraTop")
         self.camera.enable(self.time_step)
+
+        self.gps = self.getDevice("gps")
+        self.gps.enable(self.time_step)
 
         # arm motors for getting up from a side fall
         self.RShoulderRoll = self.getDevice("RShoulderRoll")
@@ -86,7 +83,10 @@ class Eve (Robot):
         elif self.opponent_position.average > 0.4:
             self.current_motion.set(self.motions['TurnRight'])
         else:
-            self.current_motion.set(self.motions['SideStepLeft'])
+            [x, y, _] = self.gps.getValues()
+            if -0.9 < x < 0.9 and -0.7 < y < 0.7:
+                self.current_motion.set(self.motions['SideStepLeft'])
+            else: return
         self.fsm.transition_to('BLOCKING_MOTION')
 
     def pending(self):
@@ -109,7 +109,7 @@ class Eve (Robot):
             return 0
         return horizontal * 2/img.shape[1] - 1
     
-    def locate_opponent(img):
+    def locate_opponent(self, img):
         """Image processing demonstration to locate the opponent robot in an image."""
         # we suppose the robot to be located at a concentration of multiple color changes (big Laplacian values)
         laplacian = cv2.Laplacian(img, cv2.CV_8U, ksize=3)

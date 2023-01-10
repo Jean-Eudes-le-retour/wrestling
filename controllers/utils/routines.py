@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import sys
-import numpy as np
 
 sys.path.append('..')
 from utils.sensors import Accelerometer
