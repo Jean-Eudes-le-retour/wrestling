@@ -34,6 +34,7 @@ HeadYawHigh			= 2.0857
 HeadYawLow			= -2.0857
 HeadPitchHigh		= 0.5149
 HeadPitchLow		= -0.6720
+
 #Left Hand limits
 LShoulderPitchHigh	= 2.0857
 LShoulderPitchLow 	= -2.0857
@@ -45,6 +46,7 @@ LElbowRollHigh  	= -0.0349
 LElbowRollLow 		= -1.5446
 LWristYawHigh		= 1.8238
 LWristYawLow		= -1.8238
+
 #Right Hand limits
 RShoulderPitchHigh 	= 2.0857
 RShoulderPitchLow 	= -2.0857

@@ -52,36 +52,42 @@ class Ellipsoid_gait_generator():
         """Update the angle of the ellipsoid path and clip it to [-pi, pi]"""
         self.theta = -(2 * np.pi * self.robot.getTime() / self.step_period) % (2 * np.pi) - np.pi
 
-    def compute_leg_position(self, is_right, desired_radius=1e3, heading_angle=0):
+    def compute_leg_position(self, is_left, desired_radius=1e3, heading_angle=0):
         """Compute the desired positions of a leg for a desired radius (R > 0 is a right turn)."""
-        # TODO: clip position to possible range?
+        factor = -1 if is_left else 1 # the math is the same for both legs, except for some signs
         desired_radius *= self.calibration_factor # actual radius is bigger than the desired one, so we "correct" it
-        factor = 1 if is_right else -1 # the math is the same for both legs, except for some signs
         if abs(desired_radius) > 0.1:
             amplitude_x = self.adapt_step_length(heading_angle) * (desired_radius - factor * self.lateral_leg_offset) / desired_radius
             x = factor * amplitude_x * np.cos(self.theta)
             yaw = - x/(desired_radius - factor * self.lateral_leg_offset)
             y = - (1 - np.cos(yaw)) * (desired_radius - factor * self.lateral_leg_offset)
         else:
-            # rotate in place
+            # if the desired radius is too small for the previous calculations, rotate in place
             rotate_right = -1 if desired_radius > 0 else 1
-            x = rotate_right * self.adapt_step_length(heading_angle) * np.cos(self.theta)
-            yaw = rotate_right * factor * self.step_twist * np.cos(self.theta)
-            y = (1 - np.cos(yaw)) * (factor * self.lateral_leg_offset)
+            amplitude_x = 0.005 * (-0.01 * rotate_right - factor * self.lateral_leg_offset) / -0.01 * rotate_right
+            x = factor * amplitude_x * np.cos(self.theta)
+            yaw = - x/(-0.01 * rotate_right - factor * self.lateral_leg_offset)
+            y = - (1 - np.cos(yaw)) * (-0.01 * rotate_right - factor * self.lateral_leg_offset)
         if heading_angle != 0:
             x, y = rotate(x, y, heading_angle)
         y += - factor * self.lateral_leg_offset
+        z = self.compute_z(is_left)    
+        # TODO: clip position to possible range?
+        return x, y, z, yaw
+
+    def compute_z(self, is_left):
+        """Takes care of the feet alternance and takes into account the vestibulospinal reflex and the extensor response."""
+        factor = -1 if is_left else 1
         amplitude_z = self.step_penetration if factor * self.theta < 0 else self.step_height
         # vestibulospinal reflex: corrects the robot's roll
         amplitude_z += factor * self.imu.getRollPitchYaw()[0] * self.roll_reflex_factor
         # extensor response: pushes on the leg when it is on the ground
-        force_values = self.right_foot_sensor.getValues() if is_right else self.left_foot_sensor.getValues()
+        force_values = self.left_foot_sensor.getValues() if is_left else self.right_foot_sensor.getValues()
         force_magnitude = np.linalg.norm(np.array([force_values[0], force_values[1], force_values[2]]))
         if force_magnitude > 5:
             amplitude_z += self.force_reflex_factor * force_magnitude
         z = factor * amplitude_z * np.sin(self.theta) - self.robot_height_offset
-            
-        return x, y, z, yaw
+        return z
     
     def adapt_step_length(self, heading_angle):
         """Adapt the step length to the heading angle."""
@@ -127,12 +133,12 @@ class Gait_manager():
         Compute the desired positions of the robot's legs for a desired radius (R > 0 is a right turn) and a desired heading angle (in radians).
         Send the commands to the motors.
         """
-        x, y, z, yaw = self.gait_generator.compute_leg_position(is_right=True, desired_radius=desired_radius, heading_angle=heading_angle)
+        x, y, z, yaw = self.gait_generator.compute_leg_position(is_left=False, desired_radius=desired_radius, heading_angle=heading_angle)
         right_target_commands = kinematics.inverse_leg(x*1e3, y*1e3, z*1e3, 0, 0, yaw, is_left=False)
         for command, motor in zip(right_target_commands, self.R_leg_motors):
             motor.setPosition(command)
 
-        x, y, z, yaw = self.gait_generator.compute_leg_position(is_right=False, desired_radius=desired_radius, heading_angle=heading_angle)
+        x, y, z, yaw = self.gait_generator.compute_leg_position(is_left=True, desired_radius=desired_radius, heading_angle=heading_angle)
         left_target_commands = kinematics.inverse_leg(x*1e3, y*1e3, z*1e3, 0, 0, yaw, is_left=True)
         for command, motor in zip(left_target_commands, self.L_leg_motors):
             motor.setPosition(command)
