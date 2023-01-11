@@ -29,6 +29,34 @@ CameraBottomZ		= 23.81
 CameraTopX			= 53.9
 CameraTopZ			= 67.9
 
+#Head Limits
+HeadYawHigh			= 2.0857
+HeadYawLow			= -2.0857
+HeadPitchHigh		= 0.5149
+HeadPitchLow		= -0.6720
+#Left Hand limits
+LShoulderPitchHigh	= 2.0857
+LShoulderPitchLow 	= -2.0857
+LShoulderRollHigh	= 1.3265
+LShoulderRollLow 	= -0.3142
+LElbowYawHigh		= 2.0875
+LElbowYawLow 		= -2.0875
+LElbowRollHigh  	= -0.0349
+LElbowRollLow 		= -1.5446
+LWristYawHigh		= 1.8238
+LWristYawLow		= -1.8238
+#Right Hand limits
+RShoulderPitchHigh 	= 2.0857
+RShoulderPitchLow 	= -2.0857
+RShoulderRollHigh	= 0.3142
+RShoulderRollLow	= -1.3265
+RElbowYawHigh 		= 2.0875
+RElbowYawLow 		= -2.0875
+RElbowRollHigh		= 1.5446
+RElbowRollLow		= 0.0349
+RWristYawHigh		= 1.8238
+RWristYawLow		= -1.8238
+
 # Left Leg limits
 # thetas = [LHipYawPitch, LHipRoll, LHipPitch, LKneePitch, LAnklePitch, LAnkleRoll]
 LHipYawPitchHigh	= 0.7408

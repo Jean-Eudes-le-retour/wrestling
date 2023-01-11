@@ -47,7 +47,9 @@ class Motion_library:
         motion_dir = '../motions/'
         for motion_file in os.listdir(motion_dir):
             motion_path = os.path.join(motion_dir, motion_file)
-            motion_name = os.path.splitext(motion_file)[0]
+            motion_name, ext = os.path.splitext(motion_file)
+            if ext != '.motion':
+                continue
             motion = Motion(motion_path)
             if motion_name.endswith('Loop'): # if the file ends with "Loop", it is played on loop
                 motion.setLoop(True)
