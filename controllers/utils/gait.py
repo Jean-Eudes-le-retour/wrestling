@@ -13,9 +13,7 @@
 # limitations under the License.
 
 import numpy as np
-from scipy.spatial.transform import Rotation as R
-from .kinematics import Kinematics
-from . import ik
+from . import kinematics
 
 class Ellipsoid_gait_generator():
     """Simple gait generator, based on an ellipsoid path.
@@ -80,23 +78,21 @@ class Gait_manager():
     """Connects the Kinematics class and the Ellipsoid_gait_generator class together to have a simple gait interface."""
     def __init__(self, robot, time_step):
         self.time_step = time_step
-        self.kinematics = Kinematics()
         self.gait_generator = Ellipsoid_gait_generator(robot, self.time_step)
+        joints = ['HipYawPitch', 'HipRoll', 'HipPitch', 'KneePitch', 'AnklePitch', 'AnkleRoll']
         self.L_leg_motors = []
-        for link in self.kinematics.left_leg_chain.links:
-            if link.name != 'Base link' and link.name != "LLeg_effector_fixedjoint":
-                motor = robot.getDevice(link.name)
-                position_sensor = motor.getPositionSensor()
-                position_sensor.enable(time_step)
-                self.L_leg_motors.append(motor)
+        for joint in joints:
+            motor = robot.getDevice(f'L{joint}')
+            position_sensor = motor.getPositionSensor()
+            position_sensor.enable(time_step)
+            self.L_leg_motors.append(motor)
         
         self.R_leg_motors = []
-        for link in self.kinematics.right_leg_chain.links:
-            if link.name != 'Base link' and link.name != "RLeg_effector_fixedjoint":
-                motor = robot.getDevice(link.name)
-                position_sensor = motor.getPositionSensor()
-                position_sensor.enable(time_step)
-                self.R_leg_motors.append(motor)
+        for joint in joints:
+            motor = robot.getDevice(f'R{joint}')
+            position_sensor = motor.getPositionSensor()
+            position_sensor.enable(time_step)
+            self.R_leg_motors.append(motor)
     
     def update_theta(self):
         self.gait_generator.update_theta()
@@ -107,12 +103,12 @@ class Gait_manager():
         Send the commands to the motors.
         """
         x, y, z, yaw = self.gait_generator.compute_leg_position(is_right=True, desired_radius=desired_radius, heading_angle=heading_angle)
-        right_target_commands = ik.inverse_leg(x*1e3, y*1e3, z*1e3, 0, 0, yaw, is_left=False)
+        right_target_commands = kinematics.inverse_leg(x*1e3, y*1e3, z*1e3, 0, 0, yaw, is_left=False)
         for command, motor in zip(right_target_commands, self.R_leg_motors):
             motor.setPosition(command)
 
         x, y, z, yaw = self.gait_generator.compute_leg_position(is_right=False, desired_radius=desired_radius, heading_angle=heading_angle)
-        left_target_commands = ik.inverse_leg(x*1e3, y*1e3, z*1e3, 0, 0, yaw, is_left=True)
+        left_target_commands = kinematics.inverse_leg(x*1e3, y*1e3, z*1e3, 0, 0, yaw, is_left=True)
         for command, motor in zip(left_target_commands, self.L_leg_motors):
             motor.setPosition(command)
 

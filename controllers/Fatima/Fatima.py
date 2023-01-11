@@ -21,7 +21,6 @@ from controller import Robot, Motion
 import sys
 sys.path.append('..')
 from utils.sensors import Accelerometer
-from utils.motion import Current_motion_manager
 from utils.routines import Fall_detection
 from utils.gait import Gait_manager
 # Eve's locate_opponent() is implemented in this module:
@@ -40,13 +39,15 @@ class Fatima (Robot):
         self.accelerometer = Accelerometer(self.getDevice('accelerometer'), self.time_step)
         self.fall_detector = Fall_detection(self.time_step, self)
         self.gait_manager = Gait_manager(self, self.time_step)
-        self.current_motion = Current_motion_manager()
-        self.current_motion.set(Motion('../motions/Stand.motion'))
+        self.shove = Motion('./Shove.motion')
+        self.shove.setLoop(True)
 
     def run(self):
+        self.shove.play()
         while self.step(self.time_step) != -1:
-            if self.current_motion.is_over():
+            if self.getTime() > 1:
                 self.fall_detector.check()
+                # We need to update the internal theta value of the gait manager at every step:
                 self.gait_manager.update_theta()
                 self.walk()
 
