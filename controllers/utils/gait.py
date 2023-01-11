@@ -23,6 +23,8 @@ class Ellipsoid_gait_generator():
     The International Journal of Robotics Research, vol. 27, no. 2, pp. 213-228,
     Feb. 2008, doi: 10.1177/0278364907084980.
     """
+    MAX_STEP_LENGTH_FRONT = 0.045
+    MAX_STEP_LENGTH_SIDE = 0.02
     def __init__(self, robot, time_step):
         self.robot = robot
         self.time_step = time_step
@@ -38,9 +40,10 @@ class Ellipsoid_gait_generator():
         self.force_reflex_factor = 3e-3/(5.305*9.81) # h_ER/(mass*gravity) in paper
         self.robot_height_offset = 0.31 # desired height for the robot's center of mass
         self.lateral_leg_offset = 0.05 # distance between the center of mass and the feet
-        self.step_period = 0.4 # time to complete one step
-        self.step_length_front = 0.045 # distance traveled by the feet in one step
-        self.step_length_side = 0.02 # distance traveled by the feet in one step
+        self.step_period = 0.5 # time to complete one step
+        self.step_length_front = self.MAX_STEP_LENGTH_FRONT # distance traveled by the feet in one step
+        self.step_length_side = self.MAX_STEP_LENGTH_SIDE # distance traveled by the feet in one step
+        self.step_twist = 0.3 
         self.step_height = 0.04 # height of the ellipsoid path
         self.step_penetration = 0.005 # depth of the ellipsoid path
         self.calibration_factor = 0.93
@@ -51,13 +54,23 @@ class Ellipsoid_gait_generator():
 
     def compute_leg_position(self, is_right, desired_radius=1e3, heading_angle=0):
         """Compute the desired positions of a leg for a desired radius (R > 0 is a right turn)."""
+        # TODO: clip position to possible range?
         desired_radius *= self.calibration_factor # actual radius is bigger than the desired one, so we "correct" it
         factor = 1 if is_right else -1 # the math is the same for both legs, except for some signs
-
-        amplitude_x = self.adapt_step_length(heading_angle) * (desired_radius - factor * self.lateral_leg_offset) / desired_radius
-        x = factor * amplitude_x * np.cos(self.theta)
-        
-        # ellipsoid path
+        if abs(desired_radius) > 0.1:
+            amplitude_x = self.adapt_step_length(heading_angle) * (desired_radius - factor * self.lateral_leg_offset) / desired_radius
+            x = factor * amplitude_x * np.cos(self.theta)
+            yaw = - x/(desired_radius - factor * self.lateral_leg_offset)
+            y = - (1 - np.cos(yaw)) * (desired_radius - factor * self.lateral_leg_offset)
+        else:
+            # rotate in place
+            rotate_right = -1 if desired_radius > 0 else 1
+            x = rotate_right * self.adapt_step_length(heading_angle) * np.cos(self.theta)
+            yaw = rotate_right * factor * self.step_twist * np.cos(self.theta)
+            y = (1 - np.cos(yaw)) * (factor * self.lateral_leg_offset)
+        if heading_angle != 0:
+            x, y = rotate(x, y, heading_angle)
+        y += - factor * self.lateral_leg_offset
         amplitude_z = self.step_penetration if factor * self.theta < 0 else self.step_height
         # vestibulospinal reflex: corrects the robot's roll
         amplitude_z += factor * self.imu.getRollPitchYaw()[0] * self.roll_reflex_factor
@@ -67,12 +80,7 @@ class Ellipsoid_gait_generator():
         if force_magnitude > 5:
             amplitude_z += self.force_reflex_factor * force_magnitude
         z = factor * amplitude_z * np.sin(self.theta) - self.robot_height_offset
-        
-        yaw = - x/(desired_radius - factor * self.lateral_leg_offset)
-        y = - (1 - np.cos(yaw)) * (desired_radius - factor * self.lateral_leg_offset)
-        if heading_angle != 0:
-            x, y = rotate(x, y, heading_angle)
-        y += - factor * self.lateral_leg_offset
+            
         return x, y, z, yaw
     
     def adapt_step_length(self, heading_angle):
@@ -85,6 +93,11 @@ class Ellipsoid_gait_generator():
         factor = heading_angle / (np.pi/2)
         amplitude = self.step_length_front * (1 - factor) + self.step_length_side * factor
         return amplitude
+    
+    def set_step_amplitude(self, amount):
+        """Set the amplitude of the step. amount is between 0 and 1."""
+        self.step_length_front = self.MAX_STEP_LENGTH_FRONT * amount
+        self.step_length_side = self.MAX_STEP_LENGTH_SIDE * amount
 
 class Gait_manager():
     """Connects the Kinematics class and the Ellipsoid_gait_generator class together to have a simple gait interface."""

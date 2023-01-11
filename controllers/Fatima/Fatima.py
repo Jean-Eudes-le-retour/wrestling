@@ -36,6 +36,8 @@ class Fatima (Robot):
 
         self.camera = self.getDevice("CameraTop")
         self.camera.enable(self.time_step)
+        self.gps = self.getDevice("gps")
+        self.gps.enable(self.time_step)
         self.accelerometer = Accelerometer(self.getDevice('accelerometer'), self.time_step)
         self.fall_detector = Fall_detection(self.time_step, self)
         self.gait_manager = Gait_manager(self, self.time_step)
@@ -49,6 +51,12 @@ class Fatima (Robot):
                 self.fall_detector.check()
                 # We need to update the internal theta value of the gait manager at every step:
                 self.gait_manager.update_theta()
+                [x, y, _] = self.gps.getValues()
+                x = abs(x)
+                y = abs(y)
+                amplitude = x if x > y else y
+                amplitude = 0.93 - amplitude
+                # self.gait_manager.gait_generator.set_step_amplitude(amplitude if amplitude > 0 else 0)
                 self.walk()
 
     def walk(self):
@@ -60,7 +68,7 @@ class Fatima (Robot):
             desired_radius = self.SMALLEST_TURNING_RADIUS / x_pos_normalized
         else:
             desired_radius = 1e3
-        self.gait_manager.command_to_motors(desired_radius=desired_radius, heading_angle=3.14/2)
+        self.gait_manager.command_to_motors(desired_radius=desired_radius, heading_angle=0)
 
     def _get_normalized_opponent_x(self):
         """Locate the opponent in the image and return its horizontal position in the range [-1, 1]."""

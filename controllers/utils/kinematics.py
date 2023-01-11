@@ -247,19 +247,25 @@ def inverse_leg(x, y, z, roll, pitch, yaw, is_left):
                 # We only add the theta_2_node if it results in a valid theta_3 and theta_1
                 theta_5_node.add_child(theta_2_node)
     combinations = get_angle_combinations(solution_tree)
-    # TODO: Find the combination that is closest to the current angles
-    # Doesn't seems to find more than one solution though
     if len(combinations) != 1:
         print("Number of combination different than one:", combinations)
-        return None
+        # compute the distance between the different combinations and the previous joints and return the closest one
+        shortest_distance = np.Inf
+        best_index = -1
+        for i, combination in enumerate(combinations):
+            distance = np.linalg.norm(np.array(left_leg_previous_joints if is_left else right_leg_previous_joints) - np.array(combination))
+            if distance < shortest_distance:
+                shortest_distance = distance
+                best_index = i
+        best_solution = combinations[best_index]
     elif len(combinations[0]) != 6:
         print("Incomputable desired end point position", combinations)
-        return left_leg_previous_joints if is_left else right_leg_previous_joints
-    if is_left:
-        left_leg_previous_joints = combinations[0]
+        best_solution = left_leg_previous_joints if is_left else right_leg_previous_joints
     else:
-        right_leg_previous_joints = combinations[0]
-
-    theta_6, theta_4, theta_5, theta_2, theta_3, theta_1 = combinations[0]
-
+        best_solution = combinations[0]
+    if is_left:
+        left_leg_previous_joints = best_solution
+    else:
+        right_leg_previous_joints = best_solution
+    theta_6, theta_4, theta_5, theta_2, theta_3, theta_1 = best_solution
     return theta_1, theta_2, theta_3, theta_4, theta_5, theta_6
