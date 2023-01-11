@@ -16,9 +16,7 @@
 This module provides a set of classes to interact with the robot's sensors.
 """
 
-import sys
-sys.path.append('..')
-from utils.utils import Average
+from .utils import Average
 
 class Accelerometer():
     """Class that provides an interface to the accelerometer sensor."""

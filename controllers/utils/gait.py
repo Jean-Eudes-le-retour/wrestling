@@ -39,7 +39,8 @@ class Ellipsoid_gait_generator():
         self.robot_height_offset = 0.31 # desired height for the robot's center of mass
         self.lateral_leg_offset = 0.05 # distance between the center of mass and the feet
         self.step_period = 0.4 # time to complete one step
-        self.step_length = 0.045 # distance traveled by the feet in one step
+        self.step_length_front = 0.045 # distance traveled by the feet in one step
+        self.step_length_side = 0.02 # distance traveled by the feet in one step
         self.step_height = 0.04 # height of the ellipsoid path
         self.step_penetration = 0.005 # depth of the ellipsoid path
         self.calibration_factor = 0.93
@@ -53,7 +54,7 @@ class Ellipsoid_gait_generator():
         desired_radius *= self.calibration_factor # actual radius is bigger than the desired one, so we "correct" it
         factor = 1 if is_right else -1 # the math is the same for both legs, except for some signs
 
-        amplitude_x = self.step_length * (desired_radius - factor * self.lateral_leg_offset) / desired_radius
+        amplitude_x = self.adapt_step_length(heading_angle) * (desired_radius - factor * self.lateral_leg_offset) / desired_radius
         x = factor * amplitude_x * np.cos(self.theta)
         
         # ellipsoid path
@@ -73,6 +74,17 @@ class Ellipsoid_gait_generator():
             x, y = rotate(x, y, heading_angle)
         y += - factor * self.lateral_leg_offset
         return x, y, z, yaw
+    
+    def adapt_step_length(self, heading_angle):
+        """Adapt the step length to the heading angle."""
+        # need to bring the heading angle fron [-pi, pi] to [0, pi/2]
+        if heading_angle < 0:
+            heading_angle = - heading_angle
+        if heading_angle > np.pi/2:
+            heading_angle = np.pi - heading_angle
+        factor = heading_angle / (np.pi/2)
+        amplitude = self.step_length_front * (1 - factor) + self.step_length_side * factor
+        return amplitude
 
 class Gait_manager():
     """Connects the Kinematics class and the Ellipsoid_gait_generator class together to have a simple gait interface."""

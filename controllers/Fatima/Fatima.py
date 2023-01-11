@@ -39,11 +39,11 @@ class Fatima (Robot):
         self.accelerometer = Accelerometer(self.getDevice('accelerometer'), self.time_step)
         self.fall_detector = Fall_detection(self.time_step, self)
         self.gait_manager = Gait_manager(self, self.time_step)
-        self.shove = Motion('./Shove.motion')
-        self.shove.setLoop(True)
+        self.punch = Motion('./Punch.motion')
+        self.punch.setLoop(True)
 
     def run(self):
-        self.shove.play()
+        # self.punch.play()
         while self.step(self.time_step) != -1:
             if self.getTime() > 1:
                 self.fall_detector.check()
@@ -60,12 +60,13 @@ class Fatima (Robot):
             desired_radius = self.SMALLEST_TURNING_RADIUS / x_pos_normalized
         else:
             desired_radius = 1e3
-        self.gait_manager.command_to_motors(desired_radius=desired_radius)
+        self.gait_manager.command_to_motors(desired_radius=desired_radius, heading_angle=3.14/2)
 
     def _get_normalized_opponent_x(self):
         """Locate the opponent in the image and return its horizontal position in the range [-1, 1]."""
         img = utils.image.get_cv_image_from_camera(self.camera)
         _, _, horizontal_coordinate = utils.image.locate_opponent(img)
+        # utils.image.send_image_to_robot_window(self, img)
         if horizontal_coordinate is None:
             return 0
         return horizontal_coordinate * 2/img.shape[1] - 1

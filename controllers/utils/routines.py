@@ -12,12 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import sys
-
-sys.path.append('..')
-from utils.sensors import Accelerometer
-from utils.fsm import Finite_state_machine
-from utils.motion import Current_motion_manager, Motion_library
+from .sensors import Accelerometer
+from .fsm import Finite_state_machine
+from .motion import Current_motion_manager, Motion_library
 
 class Fall_detection:
     def __init__(self, time_step, robot):
