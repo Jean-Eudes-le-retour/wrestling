@@ -13,10 +13,11 @@
 # limitations under the License.
 
 """
-This module provides a set of classes to interact with the robot's sensors.
+This module provides a sensor class using the RunningAverage class.
 """
 
-from .utils import Average
+from .running_average import RunningAverage
+
 
 class Accelerometer():
     """Class that provides an interface to the accelerometer sensor."""
@@ -24,7 +25,8 @@ class Accelerometer():
     def __init__(self, device, time_step, history_steps=10):
         self.device = device
         self.device.enable(time_step)
-        self.average = Average(dimensions=3, history_steps=history_steps)
+        self.average = RunningAverage(
+            dimensions=3, history_steps=history_steps)
 
     def get_values(self):
         """Returns the current accelerometer values."""
@@ -44,25 +46,3 @@ class Accelerometer():
         values = self.get_values()
         self.average.update_average(values)
         return self.get_average()
-
-class IMU():
-    """Class that provides an interface to the IMU sensor."""
-
-    def __init__(self, device, time_step):
-        self.device = device
-        self.device.enable(time_step)
-
-    def getRollPitchYaw(self):
-        """Returns the current IMU values."""
-        return self.device.getRollPitchYaw()
-
-class GPS():
-    """Class that provides an interface to the GPS sensor."""
-
-    def __init__(self, device, time_step):
-        self.device = device
-        self.device.enable(time_step)
-
-    def getValues(self):
-        """Returns the current GPS values."""
-        return self.device.getValues()

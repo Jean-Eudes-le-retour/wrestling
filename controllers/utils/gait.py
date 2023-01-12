@@ -39,14 +39,15 @@ class Ellipsoid_gait_generator():
         self.roll_reflex_factor = 5e-4 # h_VSR in paper
         self.force_reflex_factor = 3e-3/(5.305*9.81) # h_ER/(mass*gravity) in paper
         self.robot_height_offset = 0.31 # desired height for the robot's center of mass
-        self.lateral_leg_offset = 0.05 # distance between the center of mass and the feet
+        self.lateral_leg_offset = 0.05 # y distance between the center of mass and one foot
         self.step_period = 0.5 # time to complete one step
-        self.step_length_front = self.MAX_STEP_LENGTH_FRONT # distance traveled by the feet in one step
-        self.step_length_side = self.MAX_STEP_LENGTH_SIDE # distance traveled by the feet in one step
-        self.step_twist = 0.3 
+        # amplitudes of stride:
+        self.step_length_front = self.MAX_STEP_LENGTH_FRONT # when heading in the front direction (x axis)
+        self.step_length_side = self.MAX_STEP_LENGTH_SIDE # when heading in the side direction (y axis)
+        self.in_place_step_length = 0.02 # when turning in place
         self.step_height = 0.04 # height of the ellipsoid path
         self.step_penetration = 0.005 # depth of the ellipsoid path
-        self.calibration_factor = 0.93
+        self.radius_calibration = 0.93 # turning radii are bigger than desired in simulation
     
     def update_theta(self):
         """Update the angle of the ellipsoid path and clip it to [-pi, pi]"""
@@ -55,24 +56,26 @@ class Ellipsoid_gait_generator():
     def compute_leg_position(self, is_left, desired_radius=1e3, heading_angle=0):
         """Compute the desired positions of a leg for a desired radius (R > 0 is a right turn)."""
         factor = -1 if is_left else 1 # the math is the same for both legs, except for some signs
-        desired_radius *= self.calibration_factor # actual radius is bigger than the desired one, so we "correct" it
+        desired_radius *= self.radius_calibration
         if abs(desired_radius) > 0.1:
             amplitude_x = self.adapt_step_length(heading_angle) * (desired_radius - factor * self.lateral_leg_offset) / desired_radius
             x = factor * amplitude_x * np.cos(self.theta)
             yaw = - x/(desired_radius - factor * self.lateral_leg_offset)
             y = - (1 - np.cos(yaw)) * (desired_radius - factor * self.lateral_leg_offset)
+            if heading_angle != 0:
+                x, y = rotate(x, y, heading_angle)
         else:
             # if the desired radius is too small for the previous calculations, rotate in place
             rotate_right = -1 if desired_radius > 0 else 1
-            amplitude_x = 0.005 * (-0.01 * rotate_right - factor * self.lateral_leg_offset) / -0.01 * rotate_right
+            turning_radius = -2 * self.lateral_leg_offset
+            amplitude_x = self.in_place_step_length * (turning_radius * rotate_right - factor * self.lateral_leg_offset) / turning_radius * rotate_right
             x = factor * amplitude_x * np.cos(self.theta)
-            yaw = - x/(-0.01 * rotate_right - factor * self.lateral_leg_offset)
-            y = - (1 - np.cos(yaw)) * (-0.01 * rotate_right - factor * self.lateral_leg_offset)
-        if heading_angle != 0:
-            x, y = rotate(x, y, heading_angle)
+            yaw = - x/(turning_radius * rotate_right - factor * self.lateral_leg_offset)
+            y = - (1 - np.cos(yaw)) * (turning_radius * rotate_right - factor * self.lateral_leg_offset)
         y += - factor * self.lateral_leg_offset
         z = self.compute_z(is_left)    
         # TODO: clip position to possible range?
+        # print('is_left', is_left, 'x: ', x, 'y: ', y, 'yaw: ', yaw)
         return x, y, z, yaw
 
     def compute_z(self, is_left):
@@ -90,8 +93,8 @@ class Ellipsoid_gait_generator():
         return z
     
     def adapt_step_length(self, heading_angle):
-        """Adapt the step length to the heading angle."""
-        # need to bring the heading angle fron [-pi, pi] to [0, pi/2]
+        """Adapt the step length to the heading angle (side steps are smaller than straight steps)."""
+        # need to bring the heading angle from [-pi, pi] to [0, pi/2]
         if heading_angle < 0:
             heading_angle = - heading_angle
         if heading_angle > np.pi/2:

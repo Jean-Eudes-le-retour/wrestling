@@ -1,4 +1,4 @@
-# Copyright 1996-2022 Cyberbotics Ltd.
+# Copyright 1996-2023 Cyberbotics Ltd.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,10 +19,10 @@ Demonstrates how to use the camera and gives an image processing example to loca
 from controller import Robot, Motion
 import sys
 sys.path.append('..')
-from utils.routines import Fall_detection # David's fall detection is implemented in this class
-from utils.fsm import Finite_state_machine
-from utils.motion import Current_motion_manager
-from utils.utils import Average
+from utils.fall_detection import FallDetection # David's fall detection is implemented in this class
+from utils.finite_state_machine import FiniteStateMachine
+from utils.current_motion_manager import CurrentMotionManager
+from utils.running_average import RunningAverage
 import utils.image
 
 try:
@@ -39,7 +39,7 @@ class Eve (Robot):
         # retrieves the WorldInfo.basicTimeTime (ms) from the world file
         self.time_step = int(self.getBasicTimeStep())
 
-        self.fsm = Finite_state_machine(
+        self.fsm = FiniteStateMachine(
             states=['CHOOSE_ACTION', 'BLOCKING_MOTION'],
             initial_state='CHOOSE_ACTION',
             actions={
@@ -59,9 +59,9 @@ class Eve (Robot):
         self.RShoulderRoll = self.getDevice("RShoulderRoll")
         self.LShoulderRoll = self.getDevice("LShoulderRoll")
 
-        self.fall_detector = Fall_detection(self.time_step, self)
+        self.fall_detector = FallDetection(self.time_step, self)
 
-        self.current_motion = Current_motion_manager()
+        self.current_motion = CurrentMotionManager()
         # load motion files
         self.motions = {
             'SideStepLeft': Motion('../motions/SideStepLeftLoop.motion'),
@@ -69,11 +69,12 @@ class Eve (Robot):
             'TurnRight':    Motion('../motions/TurnRight20.motion'),
         }
 
-        self.opponent_position = Average(dimensions=1)
+        self.opponent_position = RunningAverage(dimensions=1)
 
     def run(self):
         while self.step(self.time_step) != -1:
-            self.opponent_position.update_average(self._get_normalized_opponent_horizontal_position())
+            self.opponent_position.update_average(
+                self._get_normalized_opponent_horizontal_position())
             self.fall_detector.check()
             self.fsm.execute_action()
 
@@ -86,7 +87,8 @@ class Eve (Robot):
             [x, y, _] = self.gps.getValues()
             if -0.9 < x < 0.9 and -0.7 < y < 0.7:
                 self.current_motion.set(self.motions['SideStepLeft'])
-            else: return
+            else:
+                return
         self.fsm.transition_to('BLOCKING_MOTION')
 
     def pending(self):
@@ -108,7 +110,7 @@ class Eve (Robot):
         if horizontal is None:
             return 0
         return horizontal * 2/img.shape[1] - 1
-    
+
     def locate_opponent(self, img):
         """Image processing demonstration to locate the opponent robot in an image."""
         # we suppose the robot to be located at a concentration of multiple color changes (big Laplacian values)
@@ -130,6 +132,7 @@ class Eve (Robot):
         else:
             # if no contour is found, we return None
             return None, None, None
+
 
 # create the Robot instance and run main loop
 wrestler = Eve()
