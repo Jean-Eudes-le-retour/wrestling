@@ -25,6 +25,8 @@ from utils.fall_detection import FallDetection
 from utils.accelerometer import Accelerometer
 from utils.gait import Gait_manager
 from utils.camera import Camera
+
+
 class Fatima (Robot):
     SMALLEST_TURNING_RADIUS = 0.1
     SAFE_ZONE = 0.75
@@ -40,7 +42,7 @@ class Fatima (Robot):
             self.getDevice('accelerometer'), self.time_step)
         self.fall_detector = FallDetection(self.time_step, self)
         self.gait_manager = Gait_manager(self, self.time_step)
-        self.heading_angle = 3.14/2
+        self.heading_angle = 3.14 / 2
         self.k = 0
 
     def run(self):
@@ -70,7 +72,7 @@ class Fatima (Robot):
             # if the robot is close to the edge, it switches dodging direction
             self.heading_angle = - self.heading_angle
             # we disable the safe zone check for a second to avoid the robot to get stuck in a loop
-            self.k = 1000/self.time_step
+            self.k = 1000 / self.time_step
         elif self.k > 0:
             self.k -= 1
         self.gait_manager.command_to_motors(
@@ -82,7 +84,7 @@ class Fatima (Robot):
         _, _, horizontal_coordinate = IP.locate_opponent(img)
         if horizontal_coordinate is None:
             return 0
-        return horizontal_coordinate * 2/img.shape[1] - 1
+        return horizontal_coordinate * 2 / img.shape[1] - 1
 
 
 # create the Robot instance and run main loop

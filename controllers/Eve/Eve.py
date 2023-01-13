@@ -24,7 +24,7 @@ from utils.current_motion_manager import CurrentMotionManager
 from utils.finite_state_machine import FiniteStateMachine
 from utils.image_processing import ImageProcessing as IP
 from utils.running_average import RunningAverage
-from utils.fall_detection import FallDetection # David's fall detection is implemented in this class
+from utils.fall_detection import FallDetection  # David's fall detection is implemented in this class
 from utils.camera import Camera
 
 
@@ -57,8 +57,8 @@ class Eve (Robot):
         # load motion files
         self.motions = {
             'SideStepLeft': Motion('../motions/SideStepLeftLoop.motion'),
-            'TurnLeft':     Motion('../motions/TurnLeft20.motion'),
-            'TurnRight':    Motion('../motions/TurnRight20.motion'),
+            'TurnRight': Motion('../motions/TurnRight20.motion'),
+            'TurnLeft': Motion('../motions/TurnLeft20.motion'),
         }
         self.opponent_position = RunningAverage(dimensions=1)
 
@@ -100,7 +100,7 @@ class Eve (Robot):
         self.camera.send_to_robot_window(output)
         if horizontal is None:
             return 0
-        return horizontal * 2/img.shape[1] - 1
+        return horizontal * 2 / img.shape[1] - 1
 
     def locate_opponent(self, img):
         """Image processing demonstration to locate the opponent robot in an image."""
