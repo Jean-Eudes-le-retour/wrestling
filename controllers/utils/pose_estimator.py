@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+'''
+Class that estimates the pose of the Nao based on the accelerometer and gyroscope values.
+'''
+
 from ahrs.filters import Mahony, Madgwick, AngularRate
 from scipy.spatial.transform import Rotation as R
 from .accelerometer import Accelerometer
@@ -19,7 +23,6 @@ import numpy as np
 
 
 class PoseEstimator:
-    '''Class that estimates the pose of the Nao based on the accelerometer and gyroscope values.'''
 
     def __init__(self, robot, time_step, algorithm='madgwick'):
         '''Initializes the pose estimator.'''

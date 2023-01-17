@@ -240,7 +240,12 @@ class Kinematics:
                     theta_5_node.add_child(theta_2_node)
         # retrieve all the possible combinations of angles from the tree
         combinations = solution_tree_root.get_angle_combinations()
-        if len(combinations) != 1:
+        combinations = [candidate for candidate in combinations if len(candidate) == 6]
+        if len(combinations) == 0 or len(combinations[0]) != 6:
+            print(f'WARNING: Incomputable desired end point position for the {"left" if is_left else "right"} leg:')
+            print(f'x: {x}, y: {y}, z: {z}, roll: {roll}, pitch: {pitch}, yaw: {yaw}')
+            best_solution = left_leg_previous_joints if is_left else right_leg_previous_joints
+        elif len(combinations) != 1:
             print('Number of combination different than one:', combinations)
             # compute the distance between the different combinations and the previous joints and return the closest one
             shortest_distance = np.Inf
@@ -252,10 +257,6 @@ class Kinematics:
                     shortest_distance = distance
                     best_index = i
             best_solution = combinations[best_index]
-        elif len(combinations[0]) != 6:
-            print(f'WARNING: Incomputable desired end point position for the {"left" if is_left else "right"} leg:')
-            print(f'x: {x}, y: {y}, z: {z}, roll: {roll}, pitch: {pitch}, yaw: {yaw}')
-            best_solution = left_leg_previous_joints if is_left else right_leg_previous_joints
         else:
             best_solution = combinations[0]
         if is_left:
