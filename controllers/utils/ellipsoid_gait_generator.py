@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import numpy as np
+from .pose_estimator import PoseEstimator
 
 
 class EllipsoidGaitGenerator():
@@ -24,25 +25,25 @@ class EllipsoidGaitGenerator():
     Feb. 2008, doi: 10.1177/0278364907084980.
     """
     MAX_STEP_LENGTH_FRONT = 0.045
-    MAX_STEP_LENGTH_SIDE = 0.02
+    MAX_STEP_LENGTH_SIDE = 0.016
+    MIN_Z = -0.327
 
     def __init__(self, robot, time_step):
         self.robot = robot
         self.time_step = time_step
         self.theta = 0  # angle of the ellipsoid path
-        self.imu = robot.getDevice('inertial unit')
-        self.imu.enable(self.time_step)
+        self.pose_estimator = PoseEstimator(robot, time_step)
         self.right_foot_sensor = robot.getDevice('RFsr')
         self.right_foot_sensor.enable(self.time_step)
         self.left_foot_sensor = robot.getDevice('LFsr')
         self.left_foot_sensor.enable(self.time_step)
 
-        self.roll_reflex_factor = 5e-4  # h_VSR in the paper
+        self.roll_reflex_factor = 4e-2  # h_VSR in the paper
         # the force reflex factor is h_ER/(mass*gravity) in the paper
-        self.force_reflex_factor = 3e-3 / (5.305 * 9.81)
+        self.force_reflex_factor = 1e-2 / (5.305 * 9.81)
         self.robot_height_offset = 0.31  # desired height for the robot's center of mass
         self.lateral_leg_offset = 0.05  # y distance between the center of mass and one foot
-        self.step_period = 0.5  # time to complete one step
+        self.step_period = 0.4  # time to complete one step
         # amplitudes of stride:
         self.step_length_front = self.MAX_STEP_LENGTH_FRONT  # when heading in the front direction (x axis)
         self.step_length_side = self.MAX_STEP_LENGTH_SIDE  # when heading in the side direction (y axis)
@@ -88,14 +89,15 @@ class EllipsoidGaitGenerator():
         factor = -1 if is_left else 1
         amplitude_z = self.step_penetration if factor * self.theta < 0 else self.step_height
         # vestibulospinal reflex: corrects the robot's roll
-        amplitude_z += factor * self.imu.getRollPitchYaw()[0] * self.roll_reflex_factor
+        amplitude_z += factor * self.pose_estimator.get_roll_pitch_yaw()[0] * self.roll_reflex_factor
         # extensor response: pushes on the leg when it is on the ground
         force_values = self.left_foot_sensor.getValues() if is_left else self.right_foot_sensor.getValues()
         force_magnitude = np.linalg.norm(np.array([force_values[0], force_values[1], force_values[2]]))
         if force_magnitude > 5:
             amplitude_z += self.force_reflex_factor * force_magnitude
         z = factor * amplitude_z * np.sin(self.theta) - self.robot_height_offset
-        return z
+        # we clip the z value to avoid infeasible positions
+        return z if z > self.MIN_Z else self.MIN_Z
 
     def adapt_step_length(self, heading_angle):
         """Adapt the step length to the heading angle (side steps are smaller than straight steps)."""

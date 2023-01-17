@@ -47,12 +47,11 @@ class David (Robot):
         )
 
         # accelerometer
-        self.accelerometer = Accelerometer(
-            self.getDevice('accelerometer'), self.time_step)
+        self.accelerometer = Accelerometer(self, self.time_step)
 
         self.leds = {
             'right': self.getDevice('Face/Led/Right'),
-            'left':  self.getDevice('Face/Led/Left')
+            'left': self.getDevice('Face/Led/Left')
         }
 
         # Shoulder roll motors for getting up from a side fall
@@ -70,7 +69,6 @@ class David (Robot):
         self.fsm.transition_to('BLOCKING_MOTION')
 
         while self.step(self.time_step) != -1:
-            t = self.getTime()
             self.detect_fall()
             self.fsm.execute_action()
 

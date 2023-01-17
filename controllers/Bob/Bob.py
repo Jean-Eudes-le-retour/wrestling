@@ -19,7 +19,7 @@ Beats Alice by moving forwards and therefore having a higher coverage.
 
 import sys
 from controller import Robot
-sys.path.append('..') # adding the utils folder to get access to some custom helper functions, have a look at it
+sys.path.append('..')  # adding the utils folder to get access to some custom helper functions, have a look at it
 from utils.motion_library import MotionLibrary
 
 
@@ -42,7 +42,7 @@ class Bob (Robot):
 
         time_step = int(self.getBasicTimeStep())
         while self.step(time_step) != -1:
-            if self.getTime() == 1: # We wait a bit for the robot to stabilise
+            if self.getTime() == 1:  # We wait a bit for the robot to stabilise
                 # to play a motion from the library, we use the play() function as follows:
                 self.library.play('Forwards50')
 

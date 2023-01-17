@@ -35,16 +35,10 @@ class FallDetection:
                 'BACK_FALL': self.back_fall
             }
         )
-
-        # accelerometer
-        self.accelerometer = Accelerometer(
-            robot.getDevice('accelerometer'), self.time_step)
-
-        # Shoulder roll motors
+        self.accelerometer = Accelerometer(robot, self.time_step)
+        # Shoulder roll motors to recover from a side fall
         self.RShoulderRoll = robot.getDevice('RShoulderRoll')
         self.LShoulderRoll = robot.getDevice('LShoulderRoll')
-
-        # load motion files
         self.current_motion = CurrentMotionManager()
         self.library = MotionLibrary()
 
