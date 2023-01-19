@@ -78,6 +78,7 @@ class Fatima (Robot):
         _, _, horizontal_coordinate = IP.locate_opponent(img)
         if horizontal_coordinate is None:
             return 0
+        self.camera.send_to_robot_window(img)
         return horizontal_coordinate * 2 / img.shape[1] - 1
 
 

@@ -18,6 +18,7 @@ WorldInfo {
     "All shots are allowed."
   ]
   title "Humanoid Robot Wrestling Competition"
+  window "competition_description"
   basicTimeStep 20
 }
 Viewpoint {
@@ -115,7 +116,7 @@ DEF WRESTLER_RED Nao {
   translation -0.88 0 0.834
   name "wrestler red"
   controller "Fatima"
-  window "camera_view"
+  window "competition_description"
   selfCollision TRUE
 }
 DEF WRESTLER_BLUE Nao {
