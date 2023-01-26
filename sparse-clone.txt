@@ -1,0 +1,6 @@
+#!/bin/bash
+
+git clone --filter=blob:none --no-checkout --sparse https://github.com/cyberbotics/wrestling.git &&\
+cd wrestling &&\
+git sparse-checkout add controllers plugins protos worlds &&\
+git checkout
